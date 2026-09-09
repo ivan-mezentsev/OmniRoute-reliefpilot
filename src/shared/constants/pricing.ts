@@ -43,6 +43,14 @@ const GPT_5_6_LUNA_PRICING = {
   cache_creation: 1.0,
 };
 
+const GPT_6_ASTRA_PRICING = {
+  input: 10.0,
+  output: 50.0,
+  cached: 1.0,
+  reasoning: 50.0,
+  cache_creation: 12.5,
+};
+
 const CLAUDE_FABLE_5_1_PRICING = {
   input: 10.0,
   output: 50.0,
@@ -276,6 +284,7 @@ export const DEFAULT_PRICING = {
   // OpenAI Codex (cx)
   cx: {
     "codex-auto-review": GPT_5_5_PRICING,
+    "gpt-6-astra": GPT_6_ASTRA_PRICING,
     // GPT 5.5
     "gpt-5.5": GPT_5_5_PRICING,
     "gpt5.5": GPT_5_5_PRICING,

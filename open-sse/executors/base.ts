@@ -229,7 +229,7 @@ function hasActiveClaudeThinking(body: Record<string, unknown>): boolean {
 const MISTRAL_NO_REASONING_EFFORT_PATTERN = /devstral/i;
 const GITHUB_NO_REASONING_EFFORT_PATTERN = /(claude|haiku|oswe)/i;
 const CODEX_REASONING_SUFFIX_PATTERN = /-(?:none|low|medium|high|xhigh|max|ultra)$/i;
-const CODEX_MAX_EFFORT_MODEL_PATTERN = /^gpt-5\.6-(?:sol|terra|luna)(?:-review)?$/i;
+const CODEX_MAX_EFFORT_MODEL_PATTERN = /^(?:gpt-6-astra|gpt-5\.6-(?:sol|terra|luna)(?:-review)?)$/i;
 const CODEX_ULTRA_EFFORT_MODEL_PATTERN = /^gpt-5\.6-(?:sol|terra)(?:-review)?$/i;
 
 function normalizeCodexReasoningModelId(model: string): string {

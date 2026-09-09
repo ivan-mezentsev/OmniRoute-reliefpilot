@@ -855,6 +855,17 @@ export const REGISTRY: Record<string, RegistryEntry> = {
         contextLength: 400000,
         maxOutputTokens: 128000,
       },
+      {
+        id: "gpt-6-astra",
+        name: "GPT 6 Astra",
+        targetFormat: "openai-responses",
+        toolCalling: true,
+        supportsReasoning: true,
+        supportsVision: true,
+        supportsXHighEffort: true,
+        contextLength: 1050000,
+        maxOutputTokens: 128000,
+      },
       { id: "gpt-5.6-sol", name: "GPT 5.6 Sol", ...GPT_5_6_CODEX_CAPABILITIES },
       {
         id: "gpt-5.6-sol-review",
