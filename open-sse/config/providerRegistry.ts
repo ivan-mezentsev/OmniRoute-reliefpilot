@@ -663,6 +663,14 @@ export const REGISTRY: Record<string, RegistryEntry> = {
         maxOutputTokens: 128000,
       },
       {
+        id: "claude-opus-5-5",
+        name: "Claude Opus 5.5",
+        supportsXHighEffort: true,
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        unsupportedParams: ["temperature", "top_p", "top_k"],
+      },
+      {
         id: "claude-opus-5",
         name: "Claude Opus 5",
         supportsXHighEffort: true,
@@ -859,6 +867,28 @@ export const REGISTRY: Record<string, RegistryEntry> = {
       {
         id: "gpt-6-astra",
         name: "GPT 6 Astra",
+        targetFormat: "openai-responses",
+        toolCalling: true,
+        supportsReasoning: true,
+        supportsVision: true,
+        supportsXHighEffort: true,
+        contextLength: 1050000,
+        maxOutputTokens: 128000,
+      },
+      {
+        id: "gpt-6-sol",
+        name: "GPT 6 Sol",
+        targetFormat: "openai-responses",
+        toolCalling: true,
+        supportsReasoning: true,
+        supportsVision: true,
+        supportsXHighEffort: true,
+        contextLength: 1050000,
+        maxOutputTokens: 128000,
+      },
+      {
+        id: "gpt-6-luna",
+        name: "GPT 6 Luna",
         targetFormat: "openai-responses",
         toolCalling: true,
         supportsReasoning: true,
@@ -1352,6 +1382,14 @@ export const REGISTRY: Record<string, RegistryEntry> = {
     },
     models: [
       { id: "claude-opus-4.7", name: "Claude Opus 4.7" },
+      {
+        id: "claude-opus-5-5",
+        name: "Claude Opus 5.5",
+        supportsXHighEffort: true,
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        unsupportedParams: ["temperature", "top_p", "top_k"],
+      },
       {
         id: "claude-opus-5",
         name: "Claude Opus 5",

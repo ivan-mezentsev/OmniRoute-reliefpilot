@@ -4,8 +4,8 @@
  * Keep this module dependency-free so executors, compatibility bridges,
  * config defaults, and tests can share one source of truth.
  */
-export const CLAUDE_CODE_CLIENT_VERSION = "2.1.258";
-export const CLAUDE_CODE_CLIENT_BUILD_REVISION = "1e2";
+export const CLAUDE_CODE_CLIENT_VERSION = "2.1.280";
+export const CLAUDE_CODE_CLIENT_BUILD_REVISION = "d7b";
 export const CLAUDE_CODE_CLIENT_BILLING_VERSION = `${CLAUDE_CODE_CLIENT_VERSION}.${CLAUDE_CODE_CLIENT_BUILD_REVISION}`;
 export const CLAUDE_CODE_SDK_PACKAGE_VERSION = "0.112.1";
 export const CLAUDE_CODE_RUNTIME_VERSION = "v26.3.0";

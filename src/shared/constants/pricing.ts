@@ -51,6 +51,22 @@ const GPT_6_ASTRA_PRICING = {
   cache_creation: 12.5,
 };
 
+const GPT_6_SOL_PRICING = {
+  input: 2.0,
+  output: 10.0,
+  cached: 0.2,
+  reasoning: 10.0,
+  cache_creation: 2.5,
+};
+
+const GPT_6_LUNA_PRICING = {
+  input: 0.1,
+  output: 0.5,
+  cached: 0.01,
+  reasoning: 0.5,
+  cache_creation: 0.125,
+};
+
 const CLAUDE_FABLE_5_1_PRICING = {
   input: 10.0,
   output: 50.0,
@@ -65,6 +81,14 @@ const CLAUDE_FABLE_5_PRICING = {
   cached: 7.5,
   reasoning: 112.5,
   cache_creation: 15.0,
+};
+
+const CLAUDE_OPUS_5_5_PRICING = {
+  input: 4.0,
+  output: 20.0,
+  cached: 0.2,
+  reasoning: 20.0,
+  cache_creation: 5.0,
 };
 
 const CLAUDE_OPUS_5_PRICING = {
@@ -222,6 +246,7 @@ export const DEFAULT_PRICING = {
       reasoning: 37.5,
       cache_creation: 5.0,
     },
+    "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
     "claude-opus-5": CLAUDE_OPUS_5_PRICING,
     "claude-opus-4-8": {
       input: 5.0,
@@ -285,6 +310,8 @@ export const DEFAULT_PRICING = {
   cx: {
     "codex-auto-review": GPT_5_5_PRICING,
     "gpt-6-astra": GPT_6_ASTRA_PRICING,
+    "gpt-6-sol": GPT_6_SOL_PRICING,
+    "gpt-6-luna": GPT_6_LUNA_PRICING,
     // GPT 5.5
     "gpt-5.5": GPT_5_5_PRICING,
     "gpt5.5": GPT_5_5_PRICING,
@@ -829,6 +856,7 @@ export const DEFAULT_PRICING = {
     // to cover hyphen-notation IDs (claude-opus-4-6) used by some clients
     "claude-fable-5-1": CLAUDE_FABLE_5_1_PRICING,
     "claude-fable-5": CLAUDE_FABLE_5_PRICING,
+    "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
     "claude-opus-5": CLAUDE_OPUS_5_PRICING,
     "claude-opus-4.8": CLAUDE_OPUS_4_PRICING,
     "claude-opus-4-8": CLAUDE_OPUS_4_PRICING,
