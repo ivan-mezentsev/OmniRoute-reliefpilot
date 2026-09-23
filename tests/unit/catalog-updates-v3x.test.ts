@@ -48,31 +48,37 @@ test("NVIDIA catalog includes the verified 2026 additions and GPT OSS 20B alias 
   });
 });
 
-test("Fable 5 catalog exposes claude-fable-5 in cc with matching pricing", () => {
+test("Claude Code exposes exactly the latest Sonnet, Opus and Fable models", () => {
+  const expected = ["claude-sonnet-5", "claude-opus-5-5", "claude-fable-5-1"];
   const ccModels = getModelsByProviderId("cc");
-  const fable = ccModels.find((model) => model.id === "claude-fable-5");
-
-  assert.ok(fable, "cc must expose claude-fable-5");
-  assert.equal(fable.contextLength, 1000000);
-  assert.equal(fable.maxOutputTokens, 128000);
+  assert.deepEqual(
+    ccModels.map((model) => model.id),
+    expected
+  );
+  assert.deepEqual(
+    getStaticModelsForProvider("claude")?.map((model) => model.id),
+    expected
+  );
+  assert.ok(ccModels.every((model) => model.contextLength === 1000000));
+  assert.ok(ccModels.every((model) => model.maxOutputTokens === 128000));
 
   const pricing = DEFAULT_PRICING as Record<string, Record<string, unknown>>;
-  assert.ok(pricing.cc["claude-fable-5"], "cc pricing must include claude-fable-5");
-  assert.ok(pricing.kiro["claude-fable-5"], "kiro pricing must include claude-fable-5");
+  assert.deepEqual(Object.keys(pricing.cc), expected);
+  assert.ok(pricing.kiro["claude-fable-5"], "Kiro pricing remains independent of Claude Code");
 });
 
-test("Opus 5 catalog is limited to verified first-party, web, and Copilot providers", () => {
-  for (const providerId of ["claude", "github", "claude-web", "anthropic"]) {
+test("Opus 5 remains available on web and Copilot independently of Claude Code", () => {
+  for (const providerId of ["github", "claude-web", "anthropic"]) {
     const model = getModelsByProviderId(providerId).find((entry) => entry.id === "claude-opus-5");
     assert.ok(model, `${providerId} must expose claude-opus-5`);
   }
 
-  const claude = getModelsByProviderId("claude").find((entry) => entry.id === "claude-opus-5");
+  const claude = getModelsByProviderId("claude").find((entry) => entry.id === "claude-opus-5-5");
   assert.equal(claude?.contextLength, 1000000);
   assert.equal(claude?.maxOutputTokens, 128000);
   assert.ok(
-    getStaticModelsForProvider("claude")?.some((entry) => entry.id === "claude-opus-5"),
-    "claude OAuth discovery must expose claude-opus-5"
+    getStaticModelsForProvider("claude")?.some((entry) => entry.id === "claude-opus-5-5"),
+    "claude OAuth discovery must expose claude-opus-5-5"
   );
 
   const github = getModelsByProviderId("github").find((entry) => entry.id === "claude-opus-5");
@@ -82,7 +88,7 @@ test("Opus 5 catalog is limited to verified first-party, web, and Copilot provid
   assert.equal(kiroIds.has("claude-opus-5"), false, "do not fabricate Kiro availability");
 
   const pricing = DEFAULT_PRICING as Record<string, Record<string, unknown>>;
-  for (const providerId of ["cc", "gh", "anthropic"]) {
+  for (const providerId of ["gh", "anthropic"]) {
     const price = pricing[providerId]["claude-opus-5"] as { input: number; output: number };
     assert.equal(price.input, 5.0, `${providerId} Opus 5 input price`);
     assert.equal(price.output, 25.0, `${providerId} Opus 5 output price`);
