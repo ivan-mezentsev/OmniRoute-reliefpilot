@@ -590,6 +590,47 @@ test("usage service covers Claude OAuth success, legacy fallback and permissions
   assert.match(permissionsMessage.message, /admin permissions/i);
 });
 
+test("Claude OAuth exposes model-scoped Fable quota only when the upstream reports it", async () => {
+  const resetAt = new Date(Date.now() + 60_000).toISOString();
+  let limits: unknown[] = [
+    {
+      kind: "weekly_scoped",
+      percent: 37,
+      resets_at: resetAt,
+      scope: { model: { display_name: "Fable" } },
+    },
+    { kind: "daily_scoped", percent: 50, scope: { model: { display_name: "Other" } } },
+    { kind: "weekly_scoped", percent: "80", scope: { model: { display_name: "Invalid" } } },
+  ];
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("/api/oauth/usage")) {
+      return new Response(JSON.stringify({ limits }), { status: 200 });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  };
+
+  const usage = (await usageService.getUsageForProvider({
+    provider: "claude",
+    accessToken: "claude-fable-scoped",
+  })) as { quotas: Record<string, unknown> };
+  assert.deepEqual(Object.keys(usage.quotas), ["weekly fable (7d)"]);
+  assert.deepEqual(usage.quotas["weekly fable (7d)"], {
+    used: 37,
+    total: 100,
+    remaining: 63,
+    remainingPercentage: 63,
+    resetAt,
+    unlimited: false,
+  });
+
+  limits = [];
+  const withoutFable = (await usageService.getUsageForProvider({
+    provider: "claude",
+    accessToken: "claude-no-fable-scoped",
+  })) as { quotas: Record<string, unknown> };
+  assert.deepEqual(withoutFable.quotas, {});
+});
+
 test("usage service covers Claude default-plan fallback, legacy org denial and fetch failures", async () => {
   globalThis.fetch = async (url) => {
     if (String(url).includes("/api/oauth/usage")) {

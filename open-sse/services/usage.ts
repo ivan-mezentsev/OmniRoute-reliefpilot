@@ -2431,6 +2431,22 @@ async function getClaudeUsage(accessToken?: string) {
         }
       }
 
+      if (Array.isArray(data.limits)) {
+        for (const entry of data.limits) {
+          const limit = toRecord(entry);
+          if (limit.kind !== "weekly_scoped") continue;
+          const model = toRecord(toRecord(limit.scope).model);
+          const modelName =
+            typeof model.display_name === "string" ? model.display_name.trim().toLowerCase() : "";
+          const percent = safePercentage(limit.percent);
+          if (!modelName || percent === undefined) continue;
+          quotas[`weekly ${modelName} (7d)`] = createQuotaObject({
+            utilization: Math.max(0, Math.min(100, percent)),
+            resets_at: limit.resets_at,
+          });
+        }
+      }
+
       const bootstrap = await bootstrapPromise;
       const plan =
         getClaudePlanLabel(

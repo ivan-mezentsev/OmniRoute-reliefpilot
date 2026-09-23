@@ -543,8 +543,8 @@ test("v1 models catalog exposes claude alias and provider-prefixed built-in mode
     new Request("http://localhost/api/v1/models")
   );
   const body = (await response.json()) as any;
-  const aliasModel = body.data.find((item) => item.id === "cc/claude-sonnet-4-6");
-  const providerModel = body.data.find((item) => item.id === "claude/claude-sonnet-4-6");
+  const aliasModel = body.data.find((item) => item.id === "cc/claude-sonnet-5");
+  const providerModel = body.data.find((item) => item.id === "claude/claude-sonnet-5");
 
   assert.equal(response.status, 200);
   assert.ok(aliasModel);
@@ -553,6 +553,10 @@ test("v1 models catalog exposes claude alias and provider-prefixed built-in mode
   assert.equal(aliasModel.capabilities?.vision, true);
   assert.deepEqual(aliasModel.input_modalities, ["text", "image"]);
   assert.deepEqual(aliasModel.output_modalities, ["text"]);
+  assert.equal(
+    body.data.some((item) => item.id === "cc/claude-sonnet-4-6"),
+    false
+  );
 });
 
 test("v1 models catalog exposes refreshed GitHub Copilot aliases and drops retired models", async () => {

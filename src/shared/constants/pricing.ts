@@ -238,44 +238,6 @@ export const DEFAULT_PRICING = {
 
   // Claude Code (cc)
   cc: {
-    "claude-fable-5-1": CLAUDE_FABLE_5_1_PRICING,
-    "claude-fable-5": {
-      input: 5.0,
-      output: 25.0,
-      cached: 2.5,
-      reasoning: 37.5,
-      cache_creation: 5.0,
-    },
-    "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
-    "claude-opus-5": CLAUDE_OPUS_5_PRICING,
-    "claude-opus-4-8": {
-      input: 5.0,
-      output: 25.0,
-      cached: 2.5,
-      reasoning: 25.0,
-      cache_creation: 5.0,
-    },
-    "claude-opus-4-7": {
-      input: 5.0,
-      output: 25.0,
-      cached: 2.5,
-      reasoning: 25.0,
-      cache_creation: 5.0,
-    },
-    "claude-opus-4-6": {
-      input: 5.0,
-      output: 25.0,
-      cached: 2.5,
-      reasoning: 25.0,
-      cache_creation: 5.0,
-    },
-    "claude-sonnet-4-6": {
-      input: 3.0,
-      output: 15.0,
-      cached: 1.5,
-      reasoning: 15.0,
-      cache_creation: 3.0,
-    },
     "claude-sonnet-5": {
       input: 3.0,
       output: 15.0,
@@ -283,27 +245,8 @@ export const DEFAULT_PRICING = {
       reasoning: 15.0,
       cache_creation: 3.75,
     },
-    "claude-opus-4-5-20251101": {
-      input: 15.0,
-      output: 75.0,
-      cached: 7.5,
-      reasoning: 75.0,
-      cache_creation: 15.0,
-    },
-    "claude-sonnet-4-5-20250929": {
-      input: 3.0,
-      output: 15.0,
-      cached: 1.5,
-      reasoning: 15.0,
-      cache_creation: 3.0,
-    },
-    "claude-haiku-4-5-20251001": {
-      input: 0.5,
-      output: 2.5,
-      cached: 0.25,
-      reasoning: 2.5,
-      cache_creation: 0.5,
-    },
+    "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
+    "claude-fable-5-1": CLAUDE_FABLE_5_1_PRICING,
   },
 
   // OpenAI Codex (cx)
