@@ -665,6 +665,16 @@ export const REGISTRY: Record<string, RegistryEntry> = {
         unsupportedParams: ["temperature", "top_p", "top_k"],
       },
       {
+        id: "claude-sonnet-5-5",
+        name: "Claude Sonnet 5.5",
+        supportsReasoning: true,
+        supportsVision: true,
+        supportsXHighEffort: true,
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        unsupportedParams: ["temperature", "top_p", "top_k"],
+      },
+      {
         id: "claude-fable-5-1",
         name: "Claude Fable 5.1",
         supportsReasoning: true,
@@ -1324,6 +1334,14 @@ export const REGISTRY: Record<string, RegistryEntry> = {
       {
         id: "claude-opus-5-5",
         name: "Claude Opus 5.5",
+        supportsXHighEffort: true,
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        unsupportedParams: ["temperature", "top_p", "top_k"],
+      },
+      {
+        id: "claude-sonnet-5-5",
+        name: "Claude Sonnet 5.5",
         supportsXHighEffort: true,
         contextLength: 1000000,
         maxOutputTokens: 128000,

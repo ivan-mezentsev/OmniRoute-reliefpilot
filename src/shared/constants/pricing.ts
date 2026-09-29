@@ -139,6 +139,14 @@ const CLAUDE_SONNET_5_PRICING = {
   cache_creation: 3.0,
 };
 
+const CLAUDE_SONNET_5_5_PRICING = {
+  input: 2.0,
+  output: 10.0,
+  cached: 0.2,
+  reasoning: 10.0,
+  cache_creation: 2.5,
+};
+
 const GLM_PRICING = {
   "glm-5.2": {
     input: 1.2,
@@ -246,6 +254,7 @@ export const DEFAULT_PRICING = {
       cache_creation: 3.75,
     },
     "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
+    "claude-sonnet-5-5": CLAUDE_SONNET_5_5_PRICING,
     "claude-fable-5-1": CLAUDE_FABLE_5_1_PRICING,
   },
 
@@ -800,6 +809,7 @@ export const DEFAULT_PRICING = {
     "claude-fable-5-1": CLAUDE_FABLE_5_1_PRICING,
     "claude-fable-5": CLAUDE_FABLE_5_PRICING,
     "claude-opus-5-5": CLAUDE_OPUS_5_5_PRICING,
+    "claude-sonnet-5-5": CLAUDE_SONNET_5_5_PRICING,
     "claude-opus-5": CLAUDE_OPUS_5_PRICING,
     "claude-opus-4.8": CLAUDE_OPUS_4_PRICING,
     "claude-opus-4-8": CLAUDE_OPUS_4_PRICING,

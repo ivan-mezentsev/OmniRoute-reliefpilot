@@ -1,9 +1,6 @@
 import { HTTP_STATUS, FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { applyFingerprint, isCliCompatEnabled } from "../config/cliFingerprints.ts";
-import {
-  CLAUDE_CLI_BILLING_VERSION,
-  CLAUDE_CLI_STAINLESS_RUNTIME_VERSION,
-} from "../config/anthropicHeaders.ts";
+import { CLAUDE_CLI_STAINLESS_RUNTIME_VERSION } from "../config/anthropicHeaders.ts";
 import { supportsClaudeMaxEffort, supportsXHighEffort } from "../config/providerModels.ts";
 import {
   getRotatingApiKey,
@@ -19,6 +16,10 @@ import {
 } from "../services/tokenRefresh.ts";
 import type { ProviderRequestDefaults } from "../services/providerRequestDefaults.ts";
 import { signRequestBody } from "../services/claudeCodeCCH.ts";
+import {
+  computeFingerprint,
+  extractFirstUserMessageText,
+} from "../services/claudeCodeFingerprint.ts";
 import {
   appendAnthropicBetaHeader,
   CONTEXT_1M_BETA_HEADER,
@@ -934,7 +935,16 @@ export class BaseExecutor {
 
           // system[0] (billing) and system[1] (sentinel) must not carry
           // cache_control — that belongs on upstream prompt blocks at [2..].
-          const billingLine = `x-anthropic-billing-header: cc_version=${CLAUDE_CLI_BILLING_VERSION}; cc_entrypoint=cli; cch=00000;`;
+          // Claude Code 2.1.284 derives the 3-char cc_version suffix from the
+          // first user message (sha256 of a fixed salt + chars at 4/7/20 + version),
+          // not from a captured build revision.
+          const fingerprint = computeFingerprint(
+            extractFirstUserMessageText(
+              tb.messages as Array<{ role?: string; content?: unknown }> | undefined
+            ),
+            CLAUDE_CODE_VERSION
+          );
+          const billingLine = `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.${fingerprint}; cc_entrypoint=cli; cch=00000;`;
           const SENTINEL = "You are Claude Code, Anthropic's official CLI for Claude.";
 
           const sysBlocks: Array<Record<string, unknown>> = Array.isArray(tb.system)
