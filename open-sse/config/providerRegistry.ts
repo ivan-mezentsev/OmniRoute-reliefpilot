@@ -875,23 +875,6 @@ export const REGISTRY: Record<string, RegistryEntry> = {
         name: "GPT 5.6 Luna Review",
         ...GPT_5_6_CODEX_CAPABILITIES,
       },
-      {
-        id: "gpt-5.4",
-        name: "GPT 5.4",
-        targetFormat: "openai-responses",
-        supportsReasoning: true,
-        supportsXHighEffort: true,
-      },
-      { id: "gpt-5.4-mini", name: "GPT 5.4 Mini", targetFormat: "openai-responses" },
-      { id: "gpt-5.3-codex-spark", name: "GPT 5.3 Codex Spark" },
-      {
-        id: "gpt-5.3-codex",
-        name: "GPT 5.3 Codex",
-        targetFormat: "openai-responses",
-        supportsReasoning: true,
-        supportsXHighEffort: true,
-      },
-      { id: "gpt-5.2", name: "GPT 5.2" },
     ],
   },
 
