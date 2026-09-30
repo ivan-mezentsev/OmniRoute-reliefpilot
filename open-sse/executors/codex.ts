@@ -552,6 +552,7 @@ function normalizeServiceTierValue(value: unknown): string | undefined {
 const MAX_EFFORT_BY_MODEL: Record<string, EffortLevel> = {
   "gpt-6-astra": "max",
   "gpt-6-sol": "max",
+  "gpt-6.1-sol": "max",
   "gpt-6-luna": "max",
   "gpt-5.6-sol": "ultra",
   "gpt-5.6-terra": "ultra",

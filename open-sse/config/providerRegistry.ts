@@ -836,6 +836,17 @@ export const REGISTRY: Record<string, RegistryEntry> = {
         maxOutputTokens: 128000,
       },
       {
+        id: "gpt-6.1-sol",
+        name: "GPT 6.1 Sol",
+        targetFormat: "openai-responses",
+        toolCalling: true,
+        supportsReasoning: true,
+        supportsVision: true,
+        supportsXHighEffort: true,
+        contextLength: 1050000,
+        maxOutputTokens: 128000,
+      },
+      {
         id: "gpt-6-luna",
         name: "GPT 6 Luna",
         targetFormat: "openai-responses",

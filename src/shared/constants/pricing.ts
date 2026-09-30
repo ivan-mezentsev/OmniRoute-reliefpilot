@@ -59,6 +59,14 @@ const GPT_6_SOL_PRICING = {
   cache_creation: 2.5,
 };
 
+const GPT_6_1_SOL_PRICING = {
+  input: 2.0,
+  output: 10.0,
+  cached: 0.1,
+  reasoning: 10.0,
+  cache_creation: 2.5,
+};
+
 const GPT_6_LUNA_PRICING = {
   input: 0.1,
   output: 0.5,
@@ -263,6 +271,7 @@ export const DEFAULT_PRICING = {
     "codex-auto-review": GPT_5_5_PRICING,
     "gpt-6-astra": GPT_6_ASTRA_PRICING,
     "gpt-6-sol": GPT_6_SOL_PRICING,
+    "gpt-6.1-sol": GPT_6_1_SOL_PRICING,
     "gpt-6-luna": GPT_6_LUNA_PRICING,
     // GPT 5.5
     "gpt-5.5": GPT_5_5_PRICING,
