@@ -300,6 +300,9 @@ export function createDisconnectAwareStream(transformStream, streamController) {
 
       try {
         const { done, value } = await reader.read();
+        if (!streamController.isConnected()) {
+          return;
+        }
         if (done) {
           streamController.handleComplete();
           controller.close();
@@ -307,6 +310,9 @@ export function createDisconnectAwareStream(transformStream, streamController) {
         }
         controller.enqueue(value);
       } catch (error) {
+        if (!streamController.isConnected()) {
+          return;
+        }
         streamController.handleError(error);
 
         // T35: Encapsulate mid-stream errors as SSE events instead of abruptly aborting

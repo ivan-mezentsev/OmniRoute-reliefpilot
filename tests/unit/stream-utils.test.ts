@@ -19,6 +19,7 @@ const { FORMATS } = await import("../../open-sse/translator/formats.ts");
 const { createRequestLogger } = await import("../../open-sse/utils/requestLogger.ts");
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 const SYNTHETIC_CLAUDE_EMPTY_RESPONSE_TEXT =
   "[Proxy Error] The upstream API returned an empty response. Please retry the request.";
 
@@ -46,6 +47,16 @@ async function readWithTransform(chunks, transformStream) {
   });
 
   return new Response(source.pipeThrough(transformStream)).text();
+}
+
+async function readUntilIncludes(reader, marker) {
+  let text = "";
+  while (!text.includes(marker)) {
+    const chunk = await reader.read();
+    assert.equal(chunk.done, false);
+    text += textDecoder.decode(chunk.value);
+  }
+  return text;
 }
 
 test.after(() => {
@@ -650,6 +661,98 @@ test("createSSEStream passthrough preserves Responses API events and completion 
   assert.match(text, /response.completed/);
   assert.equal(onCompletePayload.responseBody.usage.total_tokens, 5);
   assert.equal(onCompletePayload.providerPayload.summary.object, "response");
+});
+
+test("createSSEStream passthrough saves one successful completion when the client cancels after response.completed", async () => {
+  let onCompleteCount = 0;
+  let onCompletePayload = null;
+  const stream = createSSEStream({
+    mode: "passthrough",
+    sourceFormat: FORMATS.OPENAI_RESPONSES,
+    clientResponseFormat: FORMATS.OPENAI_RESPONSES,
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    body: { input: "ping" },
+    onComplete(result) {
+      onCompleteCount += 1;
+      onCompletePayload = result;
+    },
+  });
+  const writer = stream.writable.getWriter();
+  const reader = stream.readable.getReader();
+  const readLoop = readUntilIncludes(reader, "response.completed");
+  await writer.write(
+    textEncoder.encode(
+      `data: ${JSON.stringify({
+        type: "response.output_text.delta",
+        delta: "Pong",
+      })}\n\ndata: ${JSON.stringify({
+        type: "response.completed",
+        response: {
+          id: "resp_cancel",
+          object: "response",
+          status: "completed",
+          usage: { input_tokens: 9567, output_tokens: 137, total_tokens: 9704 },
+        },
+      })}\n\n`
+    )
+  );
+  await readLoop;
+  await reader.cancel("client closed");
+  writer.releaseLock();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(onCompleteCount, 1);
+  assert.equal(onCompletePayload.status, 200);
+  assert.equal(onCompletePayload.responseBody.usage.total_tokens, 9704);
+  assert.equal(onCompletePayload.responseBody.choices[0].message.content, "Pong");
+});
+
+test("createSSEStream translate mode saves one successful completion when the client cancels after response.completed", async () => {
+  let onCompleteCount = 0;
+  let onCompletePayload = null;
+  const stream = createSSEStream({
+    mode: "translate",
+    targetFormat: FORMATS.OPENAI,
+    sourceFormat: FORMATS.OPENAI_RESPONSES,
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    body: { messages: [{ role: "user", content: "ping" }] },
+    onComplete(result) {
+      onCompleteCount += 1;
+      onCompletePayload = result;
+    },
+  });
+  const writer = stream.writable.getWriter();
+  const reader = stream.readable.getReader();
+  const readLoop = readUntilIncludes(reader, "response.completed");
+  await writer.write(
+    textEncoder.encode(
+      [
+        `data: ${JSON.stringify({
+          id: "chatcmpl_1",
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta: { content: "Pong" }, finish_reason: null }],
+        })}`,
+        `data: ${JSON.stringify({
+          id: "chatcmpl_1",
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+        })}`,
+        "",
+      ].join("\n\n")
+    )
+  );
+  await readLoop;
+  await reader.cancel("client closed");
+  writer.releaseLock();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(onCompleteCount, 1);
+  assert.equal(onCompletePayload.status, 200);
+  assert.equal(onCompletePayload.responseBody.choices[0].message.content, "Pong");
+  assert.equal(onCompletePayload.responseBody.usage.total_tokens, 4);
 });
 
 test("buildStreamSummaryFromEvents falls back to response.output_text.delta when completed output is empty", () => {

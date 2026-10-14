@@ -798,6 +798,8 @@ export function createSSEStream(options: StreamOptions = {}) {
 
   // Guard against duplicate [DONE] events — ensures exactly one per stream
   let doneSent = false;
+  let responsesStreamCompleted = false;
+  let streamFinalized = false;
   const providerPayloadCollector = createStructuredSSECollector({
     stage: "provider_response",
   });
@@ -999,6 +1001,11 @@ export function createSSEStream(options: StreamOptions = {}) {
     clientPayloadCollector.push(itemSanitized);
     reqLogger?.appendConvertedChunk?.(output);
     controller.enqueue(encoder.encode(output));
+    // OpenAI sends the real usage chunk after finish_reason. This event is
+    // synthesized from finish_reason, so persist only on cancel, EOF, or idle timeout.
+    if (item.event === "response.completed") {
+      responsesStreamCompleted = true;
+    }
   };
 
   const emitFinalSseMetadata = async (
@@ -1149,6 +1156,194 @@ export function createSSEStream(options: StreamOptions = {}) {
     }
   };
 
+  const persistStreamSuccess = () => {
+    if (streamFinalized) return;
+    streamFinalized = true;
+
+    if (mode === STREAM_MODE.PASSTHROUGH) {
+      if (!hasValidUsage(usage) && totalContentLength > 0) {
+        usage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
+      }
+
+      if (hasValidUsage(usage)) {
+        logUsage(provider, usage, model, connectionId, apiKeyInfo);
+      } else {
+        appendRequestLog({
+          model,
+          provider,
+          connectionId,
+          tokens: null,
+          status: "200 OK",
+        }).catch(() => {});
+      }
+
+      if (onComplete) {
+        try {
+          const u = usage as Record<string, unknown> | null;
+          const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
+          const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
+          let content = passthroughAccumulatedContent.trim() || "";
+          const finalBufferedTextualToolCall = passthroughBufferedTextualToolCallContent.trim();
+          if (finalBufferedTextualToolCall) {
+            if (
+              collectPassthroughTextualToolCall(
+                finalBufferedTextualToolCall,
+                passthroughToolCalls,
+                allowedToolNames
+              )
+            ) {
+              passthroughHasToolCalls = true;
+            }
+            passthroughBufferedTextualToolCallContent = "";
+          }
+          if (
+            content &&
+            collectPassthroughTextualToolCall(content, passthroughToolCalls, allowedToolNames)
+          ) {
+            passthroughHasToolCalls = true;
+            content = "";
+          } else if (containsMalformedTextualToolCall(content)) {
+            content = "";
+          }
+          const message: Record<string, unknown> = {
+            role: "assistant",
+            content: content || null,
+          };
+          const reasoning = passthroughAccumulatedReasoning.trim();
+          if (reasoning) {
+            message.reasoning_content = reasoning;
+          }
+          if (passthroughToolCalls.size > 0) {
+            message.tool_calls = [...passthroughToolCalls.values()].sort(
+              (a, b) => a.index - b.index
+            );
+          }
+          const responseBody = {
+            choices: [
+              {
+                message,
+                finish_reason: passthroughHasToolCalls ? "tool_calls" : "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: prompt,
+              completion_tokens: completion,
+              total_tokens: prompt + completion,
+            },
+            _streamed: true,
+          };
+          onComplete({
+            status: 200,
+            usage,
+            responseBody,
+            providerPayload: providerPayloadCollector.build(
+              buildStreamSummaryFromEvents(
+                providerPayloadCollector.getEvents(),
+                sourceFormat,
+                model
+              ),
+              { includeEvents: false }
+            ),
+            clientPayload: clientPayloadCollector.build(responseBody, {
+              includeEvents: false,
+            }),
+          });
+        } catch {}
+      }
+      return;
+    }
+
+    // Estimate usage if provider didn't return valid usage (for translate mode)
+    if (state && !hasValidUsage(state.usage) && totalContentLength > 0) {
+      state.usage = estimateUsage(body, totalContentLength, sourceFormat);
+    }
+
+    if (hasValidUsage(state?.usage)) {
+      logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKeyInfo);
+    } else {
+      appendRequestLog({
+        model,
+        provider,
+        connectionId,
+        tokens: null,
+        status: "200 OK",
+      }).catch(() => {});
+    }
+
+    if (onComplete) {
+      try {
+        const u = state?.usage as Record<string, unknown> | null | undefined;
+        const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
+        const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
+        let content = (state?.accumulatedContent ?? "").trim() || "";
+        const normalizedToolCalls: ToolCall[] = state?.toolCalls?.size
+          ? [...state.toolCalls.values()]
+              .map(
+                (tc: Record<string, unknown>): ToolCall => ({
+                  id: (tc.id as string) ?? null,
+                  index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
+                  type: (tc.type as string) ?? "function",
+                  function: (tc.function as ToolCall["function"]) ?? {
+                    name: (tc.name as string) ?? "",
+                    arguments: "",
+                  },
+                })
+              )
+              .sort((a, b) => a.index - b.index)
+          : [];
+        const textualToolCall = parseTextualToolCallFromContent(content);
+        if (textualToolCall) {
+          normalizedToolCalls.push({
+            id: `call_${Date.now()}_${normalizedToolCalls.length}`,
+            index: normalizedToolCalls.length,
+            type: "function",
+            function: {
+              name: textualToolCall.name,
+              arguments: JSON.stringify(textualToolCall.args || {}),
+            },
+          });
+          content = "";
+        } else if (containsMalformedTextualToolCall(content)) {
+          content = "";
+        }
+        const message: Record<string, unknown> = {
+          role: "assistant",
+          content: content || null,
+        };
+        const hasToolCalls = normalizedToolCalls.length > 0;
+        if (hasToolCalls) {
+          message.tool_calls = normalizedToolCalls;
+        }
+        const responseBody = {
+          choices: [
+            {
+              message,
+              finish_reason: hasToolCalls ? "tool_calls" : "stop",
+            },
+          ],
+          usage: {
+            prompt_tokens: prompt,
+            completion_tokens: completion,
+            total_tokens: prompt + completion,
+          },
+          _streamed: true,
+        };
+        onComplete({
+          status: 200,
+          usage: state?.usage,
+          responseBody,
+          providerPayload: providerPayloadCollector.build(
+            buildStreamSummaryFromEvents(providerPayloadCollector.getEvents(), targetFormat, model),
+            { includeEvents: false }
+          ),
+          clientPayload: clientPayloadCollector.build(responseBody, {
+            includeEvents: false,
+          }),
+        });
+      } catch {}
+    }
+  };
+
   return new TransformStream(
     {
       start(controller) {
@@ -1161,12 +1356,17 @@ export function createSSEStream(options: StreamOptions = {}) {
               const timeoutMsg = `[STREAM] Idle timeout: no data from ${provider || "provider"} for ${STREAM_IDLE_TIMEOUT_MS}ms (model: ${model || "unknown"})`;
               console.warn(timeoutMsg);
               trackPendingRequest(model, provider, connectionId, false);
-              appendRequestLog({
-                model,
-                provider,
-                connectionId,
-                status: `FAILED ${HTTP_STATUS.GATEWAY_TIMEOUT}`,
-              }).catch(() => {});
+              if (responsesStreamCompleted) {
+                persistStreamSuccess();
+              }
+              if (!streamFinalized) {
+                appendRequestLog({
+                  model,
+                  provider,
+                  connectionId,
+                  status: `FAILED ${HTTP_STATUS.GATEWAY_TIMEOUT}`,
+                }).catch(() => {});
+              }
               const timeoutError = new Error(timeoutMsg);
               timeoutError.name = "StreamIdleTimeoutError";
               controller.error(markPendingRequestCleared(timeoutError));
@@ -1485,6 +1685,9 @@ export function createSSEStream(options: StreamOptions = {}) {
                     output = `data: ${JSON.stringify(parsed)}\n`;
                     injectedUsage = true;
                   }
+                  if (parsed.type === "response.completed") {
+                    responsesStreamCompleted = true;
+                  }
                 } else if (isClaudeSSE) {
                   // Claude SSE: extract usage, track content, forward as-is
                   const extracted = extractUsage(parsed);
@@ -1712,6 +1915,9 @@ export function createSSEStream(options: StreamOptions = {}) {
 
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(encoder.encode(output));
+            if (responsesStreamCompleted) {
+              persistStreamSuccess();
+            }
             if (failurePayload) {
               if (onFailure) {
                 try {
@@ -1938,101 +2144,19 @@ export function createSSEStream(options: StreamOptions = {}) {
               usage = estimateUsage(body, totalContentLength, sourceFormat || FORMATS.OPENAI);
             }
 
-            if (hasValidUsage(usage)) {
-              logUsage(provider, usage, model, connectionId, apiKeyInfo);
-            } else {
-              appendRequestLog({
-                model,
-                provider,
-                connectionId,
-                tokens: null,
-                status: "200 OK",
-              }).catch(() => {});
-            }
-            if (!doneSent) {
-              await emitFinalSseMetadata(controller, usage);
-              doneSent = true;
-              if (shouldEmitDoneTerminator) {
-                clientPayloadCollector.push({ done: true });
-                const doneOutput = "data: [DONE]\n\n";
-                reqLogger?.appendConvertedChunk?.(doneOutput);
-                controller.enqueue(encoder.encode(doneOutput));
+            try {
+              if (!doneSent) {
+                await emitFinalSseMetadata(controller, usage);
+                doneSent = true;
+                if (shouldEmitDoneTerminator) {
+                  clientPayloadCollector.push({ done: true });
+                  const doneOutput = "data: [DONE]\n\n";
+                  reqLogger?.appendConvertedChunk?.(doneOutput);
+                  controller.enqueue(encoder.encode(doneOutput));
+                }
               }
-            }
-            // Notify caller for call log persistence (include full response body with accumulated content)
-            if (onComplete) {
-              try {
-                const u = usage as Record<string, unknown> | null;
-                const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
-                const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
-                let content = passthroughAccumulatedContent.trim() || "";
-                const finalBufferedTextualToolCall =
-                  passthroughBufferedTextualToolCallContent.trim();
-                if (finalBufferedTextualToolCall) {
-                  if (
-                    collectPassthroughTextualToolCall(
-                      finalBufferedTextualToolCall,
-                      passthroughToolCalls,
-                      allowedToolNames
-                    )
-                  ) {
-                    passthroughHasToolCalls = true;
-                  }
-                  passthroughBufferedTextualToolCallContent = "";
-                }
-                if (
-                  content &&
-                  collectPassthroughTextualToolCall(content, passthroughToolCalls, allowedToolNames)
-                ) {
-                  passthroughHasToolCalls = true;
-                  content = "";
-                } else if (containsMalformedTextualToolCall(content)) {
-                  content = "";
-                }
-                const message: Record<string, unknown> = {
-                  role: "assistant",
-                  content: content || null,
-                };
-                const reasoning = passthroughAccumulatedReasoning.trim();
-                if (reasoning) {
-                  message.reasoning_content = reasoning;
-                }
-                if (passthroughToolCalls.size > 0) {
-                  message.tool_calls = [...passthroughToolCalls.values()].sort(
-                    (a, b) => a.index - b.index
-                  );
-                }
-                const responseBody = {
-                  choices: [
-                    {
-                      message,
-                      finish_reason: passthroughHasToolCalls ? "tool_calls" : "stop",
-                    },
-                  ],
-                  usage: {
-                    prompt_tokens: prompt,
-                    completion_tokens: completion,
-                    total_tokens: prompt + completion,
-                  },
-                  _streamed: true,
-                };
-                onComplete({
-                  status: 200,
-                  usage,
-                  responseBody,
-                  providerPayload: providerPayloadCollector.build(
-                    buildStreamSummaryFromEvents(
-                      providerPayloadCollector.getEvents(),
-                      sourceFormat,
-                      model
-                    ),
-                    { includeEvents: false }
-                  ),
-                  clientPayload: clientPayloadCollector.build(responseBody, {
-                    includeEvents: false,
-                  }),
-                });
-              } catch {}
+            } finally {
+              persistStreamSuccess();
             }
             return;
           }
@@ -2168,115 +2292,35 @@ export function createSSEStream(options: StreamOptions = {}) {
            */
 
           // Send [DONE] (only if not already sent during transform)
-          if (!doneSent) {
-            await emitFinalSseMetadata(controller, state?.usage as Record<string, unknown> | null);
-            doneSent = true;
-            if (shouldEmitDoneTerminator) {
-              clientPayloadCollector.push({ done: true });
-              const doneOutput = "data: [DONE]\n\n";
-              reqLogger?.appendConvertedChunk?.(doneOutput);
-              controller.enqueue(encoder.encode(doneOutput));
+          try {
+            if (!doneSent) {
+              await emitFinalSseMetadata(
+                controller,
+                state?.usage as Record<string, unknown> | null
+              );
+              doneSent = true;
+              if (shouldEmitDoneTerminator) {
+                clientPayloadCollector.push({ done: true });
+                const doneOutput = "data: [DONE]\n\n";
+                reqLogger?.appendConvertedChunk?.(doneOutput);
+                controller.enqueue(encoder.encode(doneOutput));
+              }
             }
-          }
-
-          // Estimate usage if provider didn't return valid usage (for translate mode)
-          if (!hasValidUsage(state?.usage) && totalContentLength > 0) {
-            state.usage = estimateUsage(body, totalContentLength, sourceFormat);
-          }
-
-          if (hasValidUsage(state?.usage)) {
-            logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKeyInfo);
-          } else {
-            appendRequestLog({
-              model,
-              provider,
-              connectionId,
-              tokens: null,
-              status: "200 OK",
-            }).catch(() => {});
-          }
-          // Notify caller for call log persistence (include full response body with accumulated content)
-          if (onComplete) {
-            try {
-              const u = state?.usage as Record<string, unknown> | null | undefined;
-              const prompt = Number(u?.prompt_tokens ?? u?.input_tokens ?? 0);
-              const completion = Number(u?.completion_tokens ?? u?.output_tokens ?? 0);
-              let content = (state?.accumulatedContent ?? "").trim() || "";
-              const normalizedToolCalls: ToolCall[] = state?.toolCalls?.size
-                ? [...state.toolCalls.values()]
-                    .map(
-                      (tc: Record<string, unknown>): ToolCall => ({
-                        id: (tc.id as string) ?? null,
-                        index: (tc.index as number) ?? (tc.blockIndex as number) ?? 0,
-                        type: (tc.type as string) ?? "function",
-                        function: (tc.function as ToolCall["function"]) ?? {
-                          name: (tc.name as string) ?? "",
-                          arguments: "",
-                        },
-                      })
-                    )
-                    .sort((a, b) => a.index - b.index)
-                : [];
-              const textualToolCall = parseTextualToolCallFromContent(content);
-              if (textualToolCall) {
-                normalizedToolCalls.push({
-                  id: `call_${Date.now()}_${normalizedToolCalls.length}`,
-                  index: normalizedToolCalls.length,
-                  type: "function",
-                  function: {
-                    name: textualToolCall.name,
-                    arguments: JSON.stringify(textualToolCall.args || {}),
-                  },
-                });
-                content = "";
-              } else if (containsMalformedTextualToolCall(content)) {
-                content = "";
-              }
-              const message: Record<string, unknown> = {
-                role: "assistant",
-                content: content || null,
-              };
-              const hasToolCalls = normalizedToolCalls.length > 0;
-              if (hasToolCalls) {
-                message.tool_calls = normalizedToolCalls;
-              }
-              const responseBody = {
-                choices: [
-                  {
-                    message,
-                    finish_reason: hasToolCalls ? "tool_calls" : "stop",
-                  },
-                ],
-                usage: {
-                  prompt_tokens: prompt,
-                  completion_tokens: completion,
-                  total_tokens: prompt + completion,
-                },
-                _streamed: true,
-              };
-              onComplete({
-                status: 200,
-                usage: state?.usage,
-                responseBody,
-                providerPayload: providerPayloadCollector.build(
-                  buildStreamSummaryFromEvents(
-                    providerPayloadCollector.getEvents(),
-                    targetFormat,
-                    model
-                  ),
-                  { includeEvents: false }
-                ),
-                clientPayload: clientPayloadCollector.build(responseBody, {
-                  includeEvents: false,
-                }),
-              });
-            } catch {}
+          } finally {
+            persistStreamSuccess();
           }
         } catch (error) {
           console.log(`[STREAM] Error in flush (${model || "unknown"}):`, error.message || error);
         }
       },
-    },
+
+      cancel() {
+        clearIdleTimer();
+        if (responsesStreamCompleted) {
+          persistStreamSuccess();
+        }
+      },
+    } as Transformer<Uint8Array, Uint8Array>,
     // Writable side backpressure — limit buffered chunks to avoid unbounded memory
     { highWaterMark: 16 },
     // Readable side backpressure — limit queued output chunks

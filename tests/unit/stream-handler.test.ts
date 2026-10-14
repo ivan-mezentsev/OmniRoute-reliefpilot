@@ -282,6 +282,46 @@ test("createDisconnectAwareStream uses the default cancel reason when none is pr
   assert.equal(disconnectEvent.reason, "cancelled");
 });
 
+test("createDisconnectAwareStream does not enqueue after cancel wins a pending read", async () => {
+  let handleErrorCalled = false;
+  let releaseRead;
+  const readGate = new Promise((resolve) => {
+    releaseRead = resolve;
+  });
+  const transformStream = {
+    readable: new ReadableStream({
+      pull() {
+        return readGate;
+      },
+      cancel() {
+        releaseRead();
+      },
+    }),
+    writable: {
+      getWriter() {
+        return {
+          abort() {},
+        };
+      },
+    },
+  };
+  const controller = createStreamController();
+  const originalHandleError = controller.handleError.bind(controller);
+  controller.handleError = (error) => {
+    handleErrorCalled = true;
+    originalHandleError(error);
+  };
+  const stream = createDisconnectAwareStream(transformStream, controller);
+  const reader = stream.getReader();
+  const pendingRead = reader.read();
+  await Promise.resolve();
+  await reader.cancel("client-gone");
+  await pendingRead;
+
+  assert.equal(handleErrorCalled, false);
+  assert.equal(controller.isConnected(), false);
+});
+
 test("createDisconnectAwareStream closes immediately when the controller is already disconnected", async () => {
   const controller = createStreamController();
   controller.handleDisconnect("preclosed");
