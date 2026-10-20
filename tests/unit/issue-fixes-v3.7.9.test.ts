@@ -3,18 +3,17 @@ import assert from "node:assert/strict";
 
 // Import the translator to test through the public API
 import { claudeToOpenAIRequest } from "../../open-sse/translator/request/claude-to-openai.ts";
+import { CodexExecutor } from "../../open-sse/executors/codex.ts";
 
 describe("#1914 — normalizeCodexTools: Chat Completions → Responses format", () => {
-  // We test the codex normalizer indirectly through the executor's transformRequest.
-  // Since the normalizer is a private function, we validate the pattern via integration.
-
-  test("normalizeCodexTools preserves Responses-format tools (no function wrapper)", async () => {
-    // Simulating what normalizeCodexTools should do:
-    // Already-valid Responses-format tool should be preserved unchanged
+  test("normalizeCodexTools preserves Responses-format tools (no function wrapper)", () => {
+    const executor = new CodexExecutor();
     const tool = {
       type: "function",
       name: "search",
       description: "Search docs",
+      strict: false,
+      defer_loading: true,
       parameters: {
         type: "object",
         properties: { query: { type: "string" } },
@@ -22,46 +21,98 @@ describe("#1914 — normalizeCodexTools: Chat Completions → Responses format",
       },
     };
 
-    // After normalization, tool should still have top-level name
-    assert.equal(tool.name, "search");
-    assert.equal(tool.description, "Search docs");
-    assert.deepStrictEqual(tool.parameters.required, ["query"]);
+    const result = executor.transformRequest(
+      "gpt-5.4",
+      { model: "gpt-5.4", input: [], tools: [tool] },
+      false,
+      {}
+    );
+
+    const tools = result.tools as Array<Record<string, unknown>>;
+    assert.equal(tools.length, 1);
+    assert.deepStrictEqual(tools[0], tool);
   });
 
-  test("Chat Completions legacy tool should be detectable by function wrapper", () => {
-    // This is the format that caused the bug
-    const legacyTool = {
-      type: "function",
-      function: {
-        name: "search",
-        description: "Search docs",
-        parameters: { type: "object", properties: { query: { type: "string" } } },
+  test("flattens Chat Completions tool and keeps function.strict", () => {
+    const executor = new CodexExecutor();
+    const result = executor.transformRequest(
+      "gpt-5.4",
+      {
+        model: "gpt-5.4",
+        input: [],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "search",
+              description: "Search docs",
+              strict: false,
+              parameters: { type: "object", properties: { query: { type: "string" } } },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "lookup",
+              description: "Lookup",
+              strict: true,
+              parameters: { type: "object", properties: { id: { type: "string" } } },
+            },
+          },
+        ],
       },
-    };
+      false,
+      {}
+    );
 
-    // Verify the legacy shape has no top-level name (the bug symptom)
-    assert.equal(typeof legacyTool.name, "undefined");
-    assert.equal(typeof legacyTool.function.name, "string");
+    const tools = result.tools as Array<Record<string, unknown>>;
+    assert.equal(tools.length, 2);
+    assert.equal("function" in tools[0], false);
+    assert.deepStrictEqual(tools[0], {
+      type: "function",
+      description: "Search docs",
+      parameters: { type: "object", properties: { query: { type: "string" } } },
+      strict: false,
+      name: "search",
+    });
+    assert.equal("function" in tools[1], false);
+    assert.deepStrictEqual(tools[1], {
+      type: "function",
+      description: "Lookup",
+      parameters: { type: "object", properties: { id: { type: "string" } } },
+      strict: true,
+      name: "lookup",
+    });
   });
 
   test("invalid function tool without any name should be filtered", () => {
-    const invalidTool = {
-      type: "function",
-      function: {
-        parameters: { type: "object", properties: {} },
+    const executor = new CodexExecutor();
+    const result = executor.transformRequest(
+      "gpt-5.4",
+      {
+        model: "gpt-5.4",
+        input: [],
+        tools: [
+          {
+            type: "function",
+            function: {
+              parameters: { type: "object", properties: {} },
+            },
+          },
+          {
+            type: "function",
+            name: "kept",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
       },
-    };
+      false,
+      {}
+    );
 
-    const rawName =
-      typeof invalidTool.name === "string"
-        ? invalidTool.name
-        : invalidTool.function &&
-            typeof invalidTool.function === "object" &&
-            typeof invalidTool.function.name === "string"
-          ? invalidTool.function.name
-          : "";
-    const name = rawName.trim();
-    assert.equal(name, "", "tool with no name should resolve to empty string");
+    const tools = result.tools as Array<Record<string, unknown>>;
+    assert.equal(tools.length, 1);
+    assert.equal(tools[0].name, "kept");
   });
 });
 

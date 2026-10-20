@@ -465,29 +465,45 @@ function normalizeCodexTools(body: Record<string, unknown>): void {
       tool.function && typeof tool.function === "object" && !Array.isArray(tool.function)
         ? (tool.function as Record<string, unknown>)
         : null;
-    const description =
-      typeof tool.description === "string"
-        ? tool.description
-        : typeof functionObject?.description === "string"
-          ? functionObject.description
-          : "";
-    const parameters =
-      tool.parameters && typeof tool.parameters === "object" && !Array.isArray(tool.parameters)
-        ? tool.parameters
-        : functionObject?.parameters &&
-            typeof functionObject.parameters === "object" &&
-            !Array.isArray(functionObject.parameters)
-          ? functionObject.parameters
-          : { type: "object", properties: {} };
 
-    // Rewrite in-place to Responses format
-    for (const key of Object.keys(tool)) {
-      delete tool[key];
+    if (functionObject) {
+      const description =
+        typeof tool.description === "string"
+          ? tool.description
+          : typeof functionObject.description === "string"
+            ? functionObject.description
+            : "";
+      const parameters =
+        tool.parameters && typeof tool.parameters === "object" && !Array.isArray(tool.parameters)
+          ? tool.parameters
+          : functionObject.parameters &&
+              typeof functionObject.parameters === "object" &&
+              !Array.isArray(functionObject.parameters)
+            ? functionObject.parameters
+            : { type: "object", properties: {} };
+      const strict =
+        typeof tool.strict === "boolean" || tool.strict === null
+          ? tool.strict
+          : typeof functionObject.strict === "boolean" || functionObject.strict === null
+            ? functionObject.strict
+            : undefined;
+
+      // Rewrite in-place to Responses format
+      for (const key of Object.keys(tool)) {
+        delete tool[key];
+      }
+      tool.type = "function";
+      if (description) tool.description = description;
+      tool.parameters = parameters;
+      if (strict !== undefined) tool.strict = strict;
+    } else if (
+      !tool.parameters ||
+      typeof tool.parameters !== "object" ||
+      Array.isArray(tool.parameters)
+    ) {
+      tool.parameters = { type: "object", properties: {} };
     }
-    tool.type = "function";
     tool.name = name.slice(0, 128);
-    if (description) tool.description = description;
-    tool.parameters = parameters;
 
     validToolNames.add(name);
     return true;
