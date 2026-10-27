@@ -4001,6 +4001,31 @@ export async function handleChatCore({
         errorCode: error.code,
       };
     }
+    const parsedStatus = Number(error?.statusCode);
+    const errorType = typeof error?.errorType === "string" ? error.errorType : null;
+    if (errorType && Number.isInteger(parsedStatus) && parsedStatus >= 400 && parsedStatus <= 499) {
+      const message = error?.message || "Invalid request";
+      return {
+        success: false,
+        status: parsedStatus,
+        error: message,
+        response: new Response(
+          JSON.stringify({
+            error: {
+              message,
+              type: errorType,
+              code: errorType,
+            },
+          }),
+          {
+            status: parsedStatus,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        ),
+      };
+    }
     const failureStatus =
       error.name === "AbortError"
         ? 499

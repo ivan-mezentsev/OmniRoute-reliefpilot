@@ -85,6 +85,18 @@ function isRetryableGlmFallbackError(error: unknown): boolean {
   if (!error) return false;
   const err = error instanceof Error ? error : new Error(String(error));
   if (err.name === "AbortError") return false;
+  if (error instanceof Error) {
+    const statusCode = Number((error as { statusCode?: unknown }).statusCode);
+    const errorType = (error as { errorType?: unknown }).errorType;
+    if (
+      typeof errorType === "string" &&
+      Number.isInteger(statusCode) &&
+      statusCode >= 400 &&
+      statusCode <= 499
+    ) {
+      return false;
+    }
+  }
   return true;
 }
 

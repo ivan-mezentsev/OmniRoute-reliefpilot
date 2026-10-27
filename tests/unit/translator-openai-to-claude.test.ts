@@ -556,3 +556,39 @@ test("OpenAI -> Claude treats developer role as system (fix for Responses API â†
   const userMessages = result.messages.filter((m) => m.role === "user");
   assert.equal(userMessages.length, 1, "expected exactly one user message");
 });
+
+test("openaiToClaudeRequest rejects tool call arguments that are not a JSON object", () => {
+  assert.throws(
+    () =>
+      openaiToClaudeRequest(
+        "claude-4-sonnet",
+        {
+          messages: [
+            {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                {
+                  id: "call_ripgrep",
+                  type: "function",
+                  function: { name: "ripgrep", arguments: "" },
+                },
+              ],
+            },
+          ],
+        },
+        false
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      const typed = error as Error & { statusCode?: number; errorType?: string };
+      assert.equal(typed.statusCode, 400);
+      assert.equal(typed.errorType, "invalid_request_error");
+      assert.equal(
+        typed.message,
+        "tool_use.input must be an object: function arguments are not a JSON object"
+      );
+      return true;
+    }
+  );
+});

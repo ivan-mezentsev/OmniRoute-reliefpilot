@@ -614,7 +614,7 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map(), disableToolPr
             type: "tool_use",
             id: sanitizeToolId(tc.id),
             name: toolName,
-            input: tryParseJSON(tc.function.arguments),
+            input: parseToolUseInput(tc.function.arguments),
           });
         }
       }
@@ -661,14 +661,32 @@ function extractTextContent(content) {
   return "";
 }
 
-// Try parse JSON
-function tryParseJSON(str) {
-  if (typeof str !== "string") return str;
-  try {
-    return JSON.parse(str);
-  } catch {
-    return str;
+function invalidToolUseInput() {
+  const error = new Error(
+    "tool_use.input must be an object: function arguments are not a JSON object"
+  ) as Error & { statusCode: number; errorType: string };
+  error.statusCode = 400;
+  error.errorType = "invalid_request_error";
+  return error;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseToolUseInput(value: unknown): Record<string, unknown> {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      throw invalidToolUseInput();
+    }
   }
+  if (!isPlainObject(parsed)) {
+    throw invalidToolUseInput();
+  }
+  return parsed;
 }
 
 function stripCacheControl(value: unknown): unknown {
