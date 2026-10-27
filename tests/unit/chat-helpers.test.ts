@@ -89,7 +89,7 @@ test("resolveModelOrError rejects malformed model strings", async () => {
   assert.match(json.error.message, /Invalid model format/i);
 });
 
-test("resolveModelOrError routes Codex native compact gpt-5.5 requests to Codex", async () => {
+test("resolveModelOrError no longer reroutes compact gpt-5.5 requests to Codex", async () => {
   const result = await resolveModelOrError(
     "gpt-5.5",
     { model: "gpt-5.5", input: "compact this session", reasoning: { effort: "xhigh" } },
@@ -97,7 +97,7 @@ test("resolveModelOrError routes Codex native compact gpt-5.5 requests to Codex"
     { "user-agent": "codex-cli/0.128.0" }
   );
 
-  assert.equal(result.provider, "codex");
+  assert.equal(result.provider, "openai");
   assert.equal(result.model, "gpt-5.5");
 });
 
@@ -113,7 +113,7 @@ test("resolveModelOrError keeps non-Codex gpt-5.5 Responses requests on OpenAI",
   assert.equal(result.model, "gpt-5.5");
 });
 
-test("resolveModelOrError routes bare gpt-5.5 to Codex medium when Codex is the only active account", async () => {
+test("resolveModelOrError keeps retired bare gpt-5.5 off Codex even with a Codex-only account", async () => {
   await seedConnection("codex");
 
   const result = await resolveModelOrError(
@@ -123,9 +123,8 @@ test("resolveModelOrError routes bare gpt-5.5 to Codex medium when Codex is the 
     { "user-agent": "OpenAI/Node" }
   );
 
-  assert.equal(result.provider, "codex");
-  assert.equal(result.model, "gpt-5.5-medium");
-  assert.equal(result.targetFormat, "openai-responses");
+  assert.equal(result.provider, "openai");
+  assert.equal(result.model, "gpt-5.5");
 });
 
 test("resolveModelOrError keeps bare gpt-5.5 on OpenAI when OpenAI is the only active account", async () => {
@@ -140,6 +139,17 @@ test("resolveModelOrError keeps bare gpt-5.5 on OpenAI when OpenAI is the only a
 
   assert.equal(result.provider, "openai");
   assert.equal(result.model, "gpt-5.5");
+});
+
+test("resolveModelOrError resolves explicit Codex GPT 6.1 Terra with Responses format", async () => {
+  const result = await resolveModelOrError(
+    "cx/gpt-6.1-terra",
+    { model: "cx/gpt-6.1-terra", input: "hello" },
+    "/v1/responses"
+  );
+  assert.equal(result.provider, "codex");
+  assert.equal(result.model, "gpt-6.1-terra");
+  assert.equal(result.targetFormat, "openai-responses");
 });
 
 test("checkPipelineGates blocks providers with an open circuit breaker", async () => {

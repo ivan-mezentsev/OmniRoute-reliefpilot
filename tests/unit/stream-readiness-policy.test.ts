@@ -49,7 +49,7 @@ test("increases timeout for tool-heavy requests", () => {
   assert.ok(result.reasons.includes("tool_heavy"));
 });
 
-test("gives Codex GPT-5.5 large Responses requests extra readiness budget", () => {
+test("removed Codex GPT-5.5 no longer receives a model-specific readiness budget", () => {
   const result = resolveStreamReadinessTimeout({
     baseTimeoutMs: 30_000,
     provider: "codex",
@@ -57,10 +57,10 @@ test("gives Codex GPT-5.5 large Responses requests extra readiness budget", () =
     body: { input: items(181), tools: tools(20) },
   });
 
-  assert.equal(result.timeoutMs, 95_000);
+  assert.equal(result.timeoutMs, 65_000);
   assert.ok(result.reasons.includes("large_history"));
   assert.ok(result.reasons.includes("tool_heavy"));
-  assert.ok(result.reasons.includes("codex_gpt_5_5_large_responses"));
+  assert.deepEqual(result.reasons, ["large_history", "tool_heavy"]);
 });
 
 test("caps adaptive timeout at maxTimeoutMs", () => {

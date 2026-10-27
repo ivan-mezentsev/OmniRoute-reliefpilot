@@ -138,7 +138,7 @@ export const IMAGE_PROVIDERS: Record<string, ImageProviderConfig> = {
     authType: "oauth",
     authHeader: "bearer",
     format: "codex-responses",
-    models: [{ id: "gpt-5.5", name: "GPT 5.5 (Codex Image)" }],
+    models: [{ id: "gpt-6.1-terra", name: "GPT 6.1 Terra (Codex Image)" }],
     supportedSizes: ["1024x1024", "1024x1536", "1536x1024"],
   },
 

@@ -260,10 +260,10 @@ async function prepare(body: JsonRecord) {
       : null;
 
   const responseBody = isRecord(body.response) ? body.response : {};
-  const requestedModel =
-    typeof responseBody.model === "string" && responseBody.model.trim()
-      ? responseBody.model.trim()
-      : "gpt-5.5";
+  if (typeof responseBody.model !== "string" || !responseBody.model.trim()) {
+    return jsonError(400, "model_required", "Field 'model' must be a non-empty string");
+  }
+  const requestedModel = responseBody.model.trim();
   const modelInfo = await getModelInfo(requestedModel);
   const provider = modelInfo.provider;
   const model = modelInfo.model || requestedModel;

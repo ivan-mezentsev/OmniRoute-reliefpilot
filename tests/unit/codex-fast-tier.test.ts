@@ -38,7 +38,7 @@ test("Codex global service mode distinguishes no setting from explicit tiers", (
   );
   assert.deepEqual(
     resolveCodexGlobalFastServiceTier({ codexServiceTier: { enabled: true, tier: "default" } }),
-    { enabled: true, tier: "default", supportedModels: ["gpt-5.5", "gpt-5.4"] }
+    { enabled: true, tier: "default", supportedModels: ["gpt-6.1-terra", "gpt-5.4"] }
   );
 });
 
@@ -112,7 +112,7 @@ test("Codex global service tier matches provider-prefixed combo model ids", () =
       "codex",
       { providerSpecificData: {} },
       { codexServiceTier: { enabled: true, tier: "priority" } },
-      { model: "codex/gpt-5.5", body }
+      { model: "codex/gpt-6.1-terra", body }
     ),
     { providerSpecificData: { requestDefaults: { serviceTier: "priority" } } }
   );
@@ -137,7 +137,7 @@ test("Codex global flex writes body service_tier when available", () => {
     "codex",
     credentials,
     { codexServiceTier: { enabled: true, tier: "flex" } },
-    { model: "gpt-5.5", body }
+    { model: "gpt-6.1-terra", body }
   );
   assert.equal(body.service_tier, "flex");
   assert.deepEqual(injected, {
@@ -151,7 +151,7 @@ test("Codex global service tier only short-circuits on valid body service_tier",
     "codex",
     { providerSpecificData: {} },
     { codexServiceTier: { enabled: true, tier: "priority" } },
-    { model: "gpt-5.5", body: invalidBody }
+    { model: "gpt-6.1-terra", body: invalidBody }
   );
 
   assert.deepEqual(injected, {
@@ -166,7 +166,7 @@ test("Codex global service tier only short-circuits on valid body service_tier",
       "codex",
       unchanged,
       { codexServiceTier: { enabled: true, tier: "priority" } },
-      { model: "gpt-5.5", body: validBody }
+      { model: "gpt-6.1-terra", body: validBody }
     ),
     unchanged
   );

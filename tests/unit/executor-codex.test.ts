@@ -87,7 +87,7 @@ test("Codex helper functions isolate rate-limit scopes and parse quota headers",
   assert.equal(getCodexUpstreamModel("gpt-5.5-medium"), "gpt-5.5");
   assert.equal(getCodexUpstreamModel("gpt-5.6-sol-review"), "gpt-5.6-sol");
   assert.equal(getCodexUpstreamModel("gpt-5.6-terra-review"), "gpt-5.6-terra");
-  assert.equal(getCodexUpstreamModel("gpt-5.6-luna-review"), "gpt-5.6-luna");
+  assert.equal(getCodexUpstreamModel("gpt-6.1-terra"), "gpt-6.1-terra");
   // With mock WS transport + codexTransport=websocket, gpt-5.5 models require WS
   __setCodexWebSocketTransportForTesting(
     async (): Promise<MockCodexWebSocket> => ({
@@ -187,10 +187,10 @@ test("CodexExecutor.buildHeaders binds workspace ids and disables SSE accept for
   assert.equal(standardHeaders.Authorization, "Bearer codex-token");
   assert.equal(standardHeaders.Accept, "text/event-stream");
   assert.equal(standardHeaders["chatgpt-account-id"], "workspace-1");
-  assert.equal(standardHeaders.Version, "0.144.0");
+  assert.equal(standardHeaders.Version, "0.164.0");
   assert.equal(standardHeaders["Openai-Beta"], "responses=experimental");
   assert.equal(standardHeaders["X-Codex-Beta-Features"], "responses_websockets");
-  assert.equal(standardHeaders["User-Agent"], "codex-cli/0.144.0 (Windows 10.0.26200; x64)");
+  assert.equal(standardHeaders["User-Agent"], "codex-cli/0.164.0 (Windows 10.0.26200; x64)");
   assert.equal(compactHeaders.Accept, "application/json");
 });
 
@@ -216,7 +216,7 @@ test("CodexExecutor.buildHeaders honors safe env overrides for Version and User-
     },
     () => {
       const headers = executor.buildHeaders({ accessToken: "codex-token" }, true);
-      assert.equal(headers.Version, "0.144.0");
+      assert.equal(headers.Version, "0.164.0");
       assert.equal(headers["User-Agent"], "custom-codex/9.9.9");
     }
   );
@@ -380,12 +380,12 @@ test("CodexExecutor.transformRequest preserves ultra for GPT 5.6 Sol", () => {
   assert.equal(result.reasoning_effort, undefined);
 });
 
-test("CodexExecutor.transformRequest downgrades ultra to max for GPT 5.6 Luna", () => {
+test("CodexExecutor.transformRequest downgrades ultra to max for GPT 6.1 Terra", () => {
   const executor = new CodexExecutor();
   const result = executor.transformRequest(
-    "gpt-5.6-luna",
+    "gpt-6.1-terra",
     {
-      model: "gpt-5.6-luna",
+      model: "gpt-6.1-terra",
       input: [],
       reasoning_effort: "ultra",
     },
@@ -397,6 +397,20 @@ test("CodexExecutor.transformRequest downgrades ultra to max for GPT 5.6 Luna", 
 
   assert.equal(result.reasoning.effort, "max");
   assert.equal(result.reasoning_effort, undefined);
+});
+
+test("CodexExecutor.transformRequest preserves supported GPT 6.1 Terra reasoning efforts", () => {
+  const executor = new CodexExecutor();
+  for (const effort of ["none", "low", "medium", "high", "xhigh", "max"]) {
+    const result = executor.transformRequest(
+      "gpt-6.1-terra",
+      { model: "gpt-6.1-terra", input: [], reasoning: { effort } },
+      true,
+      { requestEndpointPath: "/responses" }
+    );
+    assert.equal(result.model, "gpt-6.1-terra");
+    assert.equal(result.reasoning.effort, effort);
+  }
 });
 
 test("CodexExecutor.transformRequest sends neutral instructions for bare chat requests", () => {
@@ -1226,6 +1240,58 @@ test("Codex internal websocket bridge aligns cache identity without workspace fa
   assert.equal(noIdentityHeaders["chatgpt-account-id"], "workspace-1");
   assert.equal(noIdentityHeaders.session_id, undefined);
   assert.equal(noIdentityHeaders.Conversation_id, undefined);
+});
+
+test("Codex internal websocket bridge rejects missing or invalid model without an upstream request", async () => {
+  await withEnv(
+    {
+      OMNIROUTE_WS_BRIDGE_SECRET: "bridge-secret",
+      OMNIROUTE_CODEX_WS_ENABLED: "true",
+    },
+    async () => {
+      const { POST } = await import("../../src/app/api/internal/codex-responses-ws/route.ts");
+      const originalFetch = globalThis.fetch;
+      let upstreamRequests = 0;
+      globalThis.fetch = async () => {
+        upstreamRequests += 1;
+        throw new Error("Unexpected upstream request");
+      };
+
+      try {
+        const payloads = [
+          { action: "prepare" },
+          { action: "prepare", response: {} },
+          ...["", " \t\n", null, false, 0, 42, [], {}].map((model) => ({
+            action: "prepare",
+            response: { model },
+          })),
+        ];
+        for (const payload of payloads) {
+          const response = await POST(
+            new Request("http://omniroute.local/api/internal/codex-responses-ws", {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                "x-omniroute-ws-bridge-secret": "bridge-secret",
+              },
+              body: JSON.stringify(payload),
+            })
+          );
+          assert.equal(response.status, 400);
+          const body = await response.json();
+          assert.deepEqual(body, {
+            error: {
+              code: "model_required",
+              message: "Field 'model' must be a non-empty string",
+            },
+          });
+        }
+        assert.equal(upstreamRequests, 0);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
+  );
 });
 
 test("Codex internal websocket bridge rejects non-object JSON payloads", async () => {

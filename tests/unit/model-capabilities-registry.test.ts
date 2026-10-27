@@ -102,13 +102,6 @@ test("canonical model capability resolver lets exact synced metadata override gl
     32768
   );
 
-  const codexGpt55 = modelCapabilities.getResolvedModelCapabilities("codex/gpt-5.5");
-  assert.equal(codexGpt55.contextWindow, 400000);
-  assert.equal(codexGpt55.maxInputTokens, 400000);
-  assert.equal(codexGpt55.maxOutputTokens, 128000);
-  assert.equal(codexGpt55.supportsThinking, true);
-  assert.equal(codexGpt55.supportsVision, true);
-
   const bedrockSonnet46 = modelCapabilities.getResolvedModelCapabilities(
     "bedrock/eu.anthropic.claude-sonnet-4-6"
   );
@@ -140,6 +133,18 @@ test("canonical model capability resolver lets exact synced metadata override gl
   assert.equal(unknown.contextWindow, null);
   assert.equal(unknown.maxOutputTokens, null);
   assert.equal(modelCapabilities.capMaxOutputTokens("unknown/model-without-limits", 16384), 16384);
+});
+
+test("codex GPT 6.1 Terra resolves official capabilities through both provider aliases", () => {
+  for (const model of ["codex/gpt-6.1-terra", "cx/gpt-6.1-terra"]) {
+    const capabilities = modelCapabilities.getResolvedModelCapabilities(model);
+    assert.equal(capabilities.contextWindow, 1050000);
+    assert.equal(capabilities.maxInputTokens, 1050000);
+    assert.equal(capabilities.maxOutputTokens, 128000);
+    assert.equal(capabilities.supportsThinking, true);
+    assert.equal(capabilities.supportsVision, true);
+    assert.equal(capabilities.toolCalling, true);
+  }
 });
 
 test("GPT OSS and DeepSeek Reasoner models support tool calling", () => {

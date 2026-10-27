@@ -35,12 +35,6 @@ function estimateBodyChars(body: StreamReadinessBody): number {
   }
 }
 
-function isCodexGpt55(provider?: string | null, model?: string | null): boolean {
-  const normalizedProvider = (provider || "").toLowerCase();
-  const normalizedModel = (model || "").toLowerCase();
-  return normalizedProvider === "codex" && normalizedModel.includes("gpt-5.5");
-}
-
 export function resolveStreamReadinessTimeout(
   input: StreamReadinessPolicyInput
 ): StreamReadinessPolicyResult {
@@ -58,7 +52,6 @@ export function resolveStreamReadinessTimeout(
   const itemCount = Math.max(inputCount, messageCount);
   const toolCount = countArrayField(input.body, "tools");
   const estimatedChars = estimateBodyChars(input.body);
-  const codexGpt55 = isCodexGpt55(input.provider, input.model);
 
   if (itemCount > VERY_LARGE_ITEM_THRESHOLD) {
     timeoutMs += 45_000;
@@ -79,11 +72,6 @@ export function resolveStreamReadinessTimeout(
   } else if (estimatedChars > LARGE_CHAR_THRESHOLD) {
     timeoutMs += 20_000;
     reasons.push("large_payload");
-  }
-
-  if (codexGpt55 && (itemCount > LARGE_ITEM_THRESHOLD || toolCount >= TOOL_HEAVY_THRESHOLD)) {
-    timeoutMs += 30_000;
-    reasons.push("codex_gpt_5_5_large_responses");
   }
 
   timeoutMs = Math.min(timeoutMs, maxTimeoutMs);

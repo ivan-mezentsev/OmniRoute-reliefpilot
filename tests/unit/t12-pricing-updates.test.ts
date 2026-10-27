@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import { getDefaultPricing } from "../../src/shared/constants/pricing.ts";
 import { REGISTRY } from "../../open-sse/config/providerRegistry.ts";
+import { IMAGE_PROVIDERS } from "../../open-sse/config/imageRegistry.ts";
+import { computeCostFromPricing } from "../../src/lib/usage/costCalculator.ts";
 
 test("T12: pricing table includes MiniMax, GLM, Kimi and gpt-5.4 mini entries", () => {
   const pricing = getDefaultPricing();
@@ -35,33 +37,78 @@ test("T12: pricing table includes MiniMax, GLM, Kimi and gpt-5.4 mini entries", 
   assert.ok(pricing.anthropic["claude-opus-4-8"], "missing anthropic/claude-opus-4-8");
   assert.ok(pricing.anthropic["claude-opus-4-7"], "missing anthropic/claude-opus-4-7");
   assert.equal(pricing.anthropic["claude-opus-5"].output, 25.0);
-
-  assert.ok(pricing.cx["gpt-5.6-sol"], "missing cx/gpt-5.6-sol");
-  assert.ok(pricing.cx["gpt-5.6-sol-review"], "missing cx/gpt-5.6-sol-review");
-  assert.ok(pricing.cx["gpt-5.6-terra"], "missing cx/gpt-5.6-terra");
-  assert.ok(pricing.cx["gpt-5.6-terra-review"], "missing cx/gpt-5.6-terra-review");
-  assert.ok(pricing.cx["gpt-5.6-luna"], "missing cx/gpt-5.6-luna");
-  assert.ok(pricing.cx["gpt-5.6-luna-review"], "missing cx/gpt-5.6-luna-review");
-  assert.equal(pricing.cx["gpt-5.6-sol"].output, 30.0);
-  assert.equal(pricing.cx["gpt-5.6-terra"].output, 15.0);
-  assert.equal(pricing.cx["gpt-5.6-luna"].output, 6.0);
 });
 
-test("T12: codex catalog includes GPT 5.5 variations", () => {
+test("T12: codex catalog adds GPT 6.1 Terra with official capabilities", () => {
   const codexModels = new Map(REGISTRY.codex.models.map((m) => [m.id, m]));
-  assert.ok(codexModels.has("gpt-5.5-medium"), "missing codex/gpt-5.5-medium");
-  assert.ok(codexModels.has("gpt-5.5-xhigh"), "missing codex/gpt-5.5-xhigh");
-  assert.ok(codexModels.has("gpt-5.6-sol"), "missing codex/gpt-5.6-sol");
-  assert.ok(codexModels.has("gpt-5.6-sol-review"), "missing codex/gpt-5.6-sol-review");
-  assert.ok(codexModels.has("gpt-5.6-terra"), "missing codex/gpt-5.6-terra");
-  assert.ok(codexModels.has("gpt-5.6-terra-review"), "missing codex/gpt-5.6-terra-review");
-  assert.ok(codexModels.has("gpt-5.6-luna"), "missing codex/gpt-5.6-luna");
-  assert.ok(codexModels.has("gpt-5.6-luna-review"), "missing codex/gpt-5.6-luna-review");
-  assert.equal(codexModels.get("gpt-5.5-medium")?.name, "GPT 5.5 (Medium)");
-  assert.equal(codexModels.get("gpt-5.5-medium")?.targetFormat, "openai-responses");
-  assert.equal(codexModels.get("gpt-5.5-xhigh")?.targetFormat, "openai-responses");
-  assert.equal(codexModels.get("gpt-5.6-sol")?.targetFormat, "openai-responses");
-  assert.equal(codexModels.get("gpt-5.6-sol-review")?.name, "GPT 5.6 Sol Review");
+  assert.deepEqual(codexModels.get("gpt-6.1-terra"), {
+    id: "gpt-6.1-terra",
+    name: "GPT 6.1 Terra",
+    targetFormat: "openai-responses",
+    toolCalling: true,
+    supportsReasoning: true,
+    supportsVision: true,
+    supportsXHighEffort: true,
+    contextLength: 1050000,
+    maxOutputTokens: 128000,
+  });
+  for (const id of [
+    "gpt-6-astra",
+    "gpt-6.1-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-sol-review",
+    "gpt-5.6-terra",
+    "gpt-5.6-terra-review",
+  ]) {
+    assert.ok(codexModels.has(id), `missing codex/${id}`);
+  }
+  assert.deepEqual(IMAGE_PROVIDERS.codex.models, [
+    { id: "gpt-6.1-terra", name: "GPT 6.1 Terra (Codex Image)" },
+  ]);
+});
+
+test("T12: codex removes retired models and all catalog/pricing variations", () => {
+  const pricing = getDefaultPricing();
+  const isRemoved = (id: string) =>
+    /^(?:gpt-?5\.5(?:-|$)|gpt-6-sol(?:-|$)|gpt-5\.6-luna(?:-|$))/.test(id);
+  assert.deepEqual(
+    REGISTRY.codex.models.filter((model) => isRemoved(model.id)),
+    []
+  );
+  assert.deepEqual(Object.keys(pricing.cx).filter(isRemoved), []);
+  assert.ok(pricing.openai["gpt-5.5"], "other providers keep GPT 5.5 pricing");
+});
+
+test("T12: codex GPT 6.1 Terra uses official standard and fast pricing", () => {
+  const pricing = getDefaultPricing().cx;
+  assert.deepEqual(pricing["gpt-6.1-terra"], {
+    input: 1,
+    output: 5,
+    cached: 0.05,
+    reasoning: 5,
+    cache_creation: 1.25,
+  });
+  assert.equal(pricing["gpt-5.6-sol"].output, 30);
+  assert.equal(pricing["gpt-5.6-terra"].output, 15);
+  const tokens = { input: 100000, output: 100000 };
+  assert.equal(computeCostFromPricing(pricing["gpt-6.1-terra"], tokens), 0.6);
+  assert.equal(
+    computeCostFromPricing(pricing["gpt-6.1-terra"], tokens, {
+      provider: "codex",
+      model: "gpt-6.1-terra",
+      serviceTier: "priority",
+    }),
+    1.2
+  );
+  assert.equal(
+    computeCostFromPricing(pricing["gpt-6.1-terra"], tokens, {
+      provider: "cx",
+      model: "gpt-6.1-terra",
+      serviceTier: "flex",
+    }),
+    0.3
+  );
 });
 
 test("T12: minimax default model list starts with M2.7", () => {

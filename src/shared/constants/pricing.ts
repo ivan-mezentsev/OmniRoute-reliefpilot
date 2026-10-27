@@ -27,14 +27,6 @@ const GPT_5_6_TERRA_PRICING = {
   cache_creation: 2.5,
 };
 
-const GPT_5_6_LUNA_PRICING = {
-  input: 1.0,
-  output: 6.0,
-  cached: 0.1,
-  reasoning: 6.0,
-  cache_creation: 1.0,
-};
-
 const GPT_6_ASTRA_PRICING = {
   input: 10.0,
   output: 50.0,
@@ -43,12 +35,14 @@ const GPT_6_ASTRA_PRICING = {
   cache_creation: 12.5,
 };
 
-const GPT_6_SOL_PRICING = {
-  input: 2.0,
-  output: 10.0,
-  cached: 0.2,
-  reasoning: 10.0,
-  cache_creation: 2.5,
+// https://developers.openai.com/api/docs/models/gpt-6.1-terra
+// Standard rates; cache writes use 30-minute retention.
+const GPT_6_1_TERRA_PRICING = {
+  input: 1.0,
+  output: 5.0,
+  cached: 0.05,
+  reasoning: 5.0,
+  cache_creation: 1.25,
 };
 
 const GPT_6_1_SOL_PRICING = {
@@ -262,24 +256,14 @@ export const DEFAULT_PRICING = {
   cx: {
     "codex-auto-review": GPT_5_5_PRICING,
     "gpt-6-astra": GPT_6_ASTRA_PRICING,
-    "gpt-6-sol": GPT_6_SOL_PRICING,
+    "gpt-6.1-terra": GPT_6_1_TERRA_PRICING,
     "gpt-6.1-sol": GPT_6_1_SOL_PRICING,
     "gpt-6-luna": GPT_6_LUNA_PRICING,
-    // GPT 5.5
-    "gpt-5.5": GPT_5_5_PRICING,
-    "gpt5.5": GPT_5_5_PRICING,
-    "gpt-5.5-xhigh": GPT_5_5_PRICING,
-    "gpt-5.5-high": GPT_5_5_PRICING,
-    "gpt-5.5-medium": GPT_5_5_PRICING,
-    "gpt-5.5-low": GPT_5_5_PRICING,
-    "gpt-5.5-none": GPT_5_5_PRICING,
     // GPT 5.6 family
     "gpt-5.6-sol": GPT_5_6_SOL_PRICING,
     "gpt-5.6-sol-review": GPT_5_6_SOL_PRICING,
     "gpt-5.6-terra": GPT_5_6_TERRA_PRICING,
     "gpt-5.6-terra-review": GPT_5_6_TERRA_PRICING,
-    "gpt-5.6-luna": GPT_5_6_LUNA_PRICING,
-    "gpt-5.6-luna-review": GPT_5_6_LUNA_PRICING,
   },
 
   // Gemini CLI

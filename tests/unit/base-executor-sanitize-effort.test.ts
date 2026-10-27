@@ -160,14 +160,14 @@ test("sanitizeReasoningEffortForProvider: mistral/devstral preserves reasoning w
 });
 
 test("sanitizeReasoningEffortForProvider: codex with xhigh passes through unchanged when model supports it", () => {
-  // codex/gpt-5.5-xhigh is flagged supportsXHighEffort:true in providerRegistry.
+  // codex/gpt-6.1-terra is flagged supportsXHighEffort:true in providerRegistry.
   // Claude Opus 4.7+ models default to xhigh support unless explicitly opted out.
   const body = {
-    model: "gpt-5.5-xhigh",
+    model: "gpt-6.1-terra",
     reasoning_effort: "xhigh",
     messages: [],
   };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-5.5-xhigh", null);
+  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-6.1-terra", null);
   // Either passes through unchanged (supportsXHighEffort=true)
   // or the registry doesn't flag it — in which case downgrade is acceptable.
   // We assert no error and that some reasoning_effort is present.
@@ -197,14 +197,23 @@ test("sanitizeReasoningEffortForProvider: codex GPT-5.6 Sol preserves ultra", ()
   assert.equal((result as any).reasoning_effort, "ultra");
 });
 
-test("sanitizeReasoningEffortForProvider: codex GPT-5.6 Luna downgrades ultra to max", () => {
+test("sanitizeReasoningEffortForProvider: codex GPT-6.1 Terra downgrades ultra to max", () => {
   const body = {
-    model: "gpt-5.6-luna",
+    model: "gpt-6.1-terra",
     reasoning_effort: "ultra",
     messages: [],
   };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-5.6-luna", null);
+  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-6.1-terra", null);
   assert.equal((result as any).reasoning_effort, "max");
+});
+
+test("sanitizeReasoningEffortForProvider: codex GPT-6.1 Terra preserves supported efforts", () => {
+  for (const effort of ["none", "low", "medium", "high", "xhigh", "max"]) {
+    const model = "gpt-6.1-terra";
+    const body = { model, reasoning: { effort, summary: "auto" }, messages: [] };
+    const result = sanitizeReasoningEffortForProvider(body, "codex", model, null);
+    assert.deepEqual((result as Record<string, unknown>).reasoning, { effort, summary: "auto" });
+  }
 });
 
 test("sanitizeReasoningEffortForProvider: no-op when reasoning_effort absent", () => {

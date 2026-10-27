@@ -125,5 +125,8 @@ test("Codex GPT 5.6 family supports xhigh effort", () => {
   assert.equal(supportsXHighEffort("codex", "gpt-5.6-sol"), true);
   assert.equal(supportsXHighEffort("codex", "gpt-5.6-sol-review"), true);
   assert.equal(supportsXHighEffort("codex", "gpt-5.6-terra"), true);
-  assert.equal(supportsXHighEffort("codex", "gpt-5.6-luna"), true);
+  assert.equal(supportsXHighEffort("codex", "gpt-6.1-terra"), true);
+  assert.equal(isValidModel("codex", "gpt-5.6-luna"), false);
+  assert.equal(isValidModel("codex", "gpt-6-sol"), false);
+  assert.equal(isValidModel("codex", "gpt-5.5"), false);
 });

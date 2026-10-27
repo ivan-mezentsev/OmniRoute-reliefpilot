@@ -567,12 +567,11 @@ function normalizeServiceTierValue(value: unknown): string | undefined {
  */
 const MAX_EFFORT_BY_MODEL: Record<string, EffortLevel> = {
   "gpt-6-astra": "max",
-  "gpt-6-sol": "max",
+  "gpt-6.1-terra": "max",
   "gpt-6.1-sol": "max",
   "gpt-6-luna": "max",
   "gpt-5.6-sol": "ultra",
   "gpt-5.6-terra": "ultra",
-  "gpt-5.6-luna": "max",
 };
 
 /**
@@ -1275,7 +1274,7 @@ export class CodexExecutor extends BaseExecutor {
     const fallbackReasoningEffort = allowConnectionReasoningDefaults
       ? requestDefaults.reasoningEffort || "medium"
       : undefined;
-    // Issue #2331: model suffix aliases (for example gpt-5.5-xhigh) represent an
+    // Issue #2331: model suffix aliases (for example gpt-6.1-terra-xhigh) represent an
     // explicit model selection, so they must override client-injected defaults such
     // as OpenCode's automatic reasoning.effort=medium for GPT-5-family requests.
     const rawEffort =
@@ -1335,7 +1334,7 @@ export class CodexExecutor extends BaseExecutor {
     // Issue #2608: Use an allowlist of known Responses API fields instead of a
     // denylist of Chat Completions fields. The denylist approach missed fields
     // like `stop`, `response_format`, `logit_bias`, `function_call`, `functions`,
-    // `max_completion_tokens`, and `parallel_tool_calls` — causing gpt-5.5 to
+    // `max_completion_tokens`, and `parallel_tool_calls` — causing Codex models to
     // reject with "routing_unsupported" (400). An allowlist is future-proof:
     // any unknown field from Chat Completions (or other formats) is stripped.
     const RESPONSES_API_ALLOWLIST = new Set([

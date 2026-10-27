@@ -65,7 +65,8 @@ export function getCodexFastCostMultiplier(
   const modelKey = stripCodexEffortSuffix(normalizeModelName(String(model || "")).toLowerCase());
   const compactModelKey = modelKey.replace(/-/g, "");
   if (modelKey === "gpt-5.5" || compactModelKey === "gpt5.5") return 2.5;
-  if (modelKey === "gpt-5.4" || compactModelKey === "gpt5.4") return 2;
+  if (modelKey === "gpt-5.4" || compactModelKey === "gpt5.4" || modelKey === "gpt-6.1-terra")
+    return 2;
   return 1;
 }
 
