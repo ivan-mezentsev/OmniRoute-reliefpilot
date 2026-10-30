@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { translateRequest } from "../../open-sse/translator/index.ts";
+import { FORMATS } from "../../open-sse/translator/formats.ts";
 
 const { claudeToOpenAIRequest } =
   await import("../../open-sse/translator/request/claude-to-openai.ts");
@@ -241,30 +243,26 @@ test("Claude -> OpenAI normalizes output_config.effort=max to xhigh", () => {
   assert.equal(result.reasoning_effort, "xhigh");
 });
 
-test("Claude -> OpenAI preserves output_config.effort=max for GPT 5.6 Sol", () => {
-  const result = claudeToOpenAIRequest(
-    "gpt-5.6-sol",
-    {
-      messages: [{ role: "user", content: "hi" }],
-      output_config: { effort: "max" },
-    },
-    false
-  );
+test("Claude -> Codex Responses preserves max and ultra efforts", () => {
+  for (const model of ["gpt-6.1-sol", "custom-codex-model"]) {
+    for (const effort of ["max", "ultra"]) {
+      const result = translateRequest(
+        FORMATS.CLAUDE,
+        FORMATS.OPENAI_RESPONSES,
+        model,
+        {
+          messages: [{ role: "user", content: "hi" }],
+          output_config: { effort },
+        },
+        false,
+        null,
+        "codex"
+      );
 
-  assert.equal(result.reasoning_effort, "max");
-});
-
-test("Claude -> OpenAI preserves output_config.effort=ultra for GPT 5.6 Sol", () => {
-  const result = claudeToOpenAIRequest(
-    "gpt-5.6-sol",
-    {
-      messages: [{ role: "user", content: "hi" }],
-      output_config: { effort: "ultra" },
-    },
-    false
-  );
-
-  assert.equal(result.reasoning_effort, "ultra");
+      assert.deepEqual(result.reasoning, { effort });
+      assert.equal(result.reasoning_effort, undefined);
+    }
+  }
 });
 
 test("Claude -> OpenAI ignores disabled thinking and leaves reasoning_effort unset", () => {

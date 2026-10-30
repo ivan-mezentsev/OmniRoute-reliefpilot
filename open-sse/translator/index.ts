@@ -141,6 +141,9 @@ export function translateRequest(
     copilotClient?: boolean;
   }
 ) {
+  if (provider === "codex") {
+    credentials = { ...credentials, provider };
+  }
   let result = body;
   const use9CharId = options?.normalizeToolCallId === true;
   const preserveDeveloperRole = options?.preserveDeveloperRole;

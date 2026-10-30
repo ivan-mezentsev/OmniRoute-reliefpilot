@@ -229,32 +229,10 @@ function hasActiveClaudeThinking(body: Record<string, unknown>): boolean {
  */
 const MISTRAL_NO_REASONING_EFFORT_PATTERN = /devstral/i;
 const GITHUB_NO_REASONING_EFFORT_PATTERN = /(claude|haiku|oswe)/i;
-const CODEX_REASONING_SUFFIX_PATTERN = /-(?:none|low|medium|high|xhigh|max|ultra)$/i;
-const CODEX_MAX_EFFORT_MODEL_PATTERN =
-  /^(?:gpt-6-(?:astra|luna)|gpt-6\.1-terra|gpt-5\.6-(?:sol|terra)(?:-review)?)$/i;
-const CODEX_ULTRA_EFFORT_MODEL_PATTERN = /^gpt-5\.6-(?:sol|terra)(?:-review)?$/i;
-
-function normalizeCodexReasoningModelId(model: string): string {
-  return model
-    .trim()
-    .toLowerCase()
-    .replace(/^(?:codex|cx)\//, "")
-    .replace(CODEX_REASONING_SUFFIX_PATTERN, "");
-}
-
-function supportsCodexMaxEffort(model: string): boolean {
-  return CODEX_MAX_EFFORT_MODEL_PATTERN.test(normalizeCodexReasoningModelId(model));
-}
-
-function supportsCodexUltraEffort(model: string): boolean {
-  return CODEX_ULTRA_EFFORT_MODEL_PATTERN.test(normalizeCodexReasoningModelId(model));
-}
-
 function supportsMaxEffortForProvider(provider: string, model: string): boolean {
   return (
-    ((provider === PROVIDER_CLAUDE || isClaudeCodeCompatible(provider)) &&
-      supportsClaudeMaxEffort(model)) ||
-    (provider === "codex" && supportsCodexMaxEffort(model))
+    (provider === PROVIDER_CLAUDE || isClaudeCodeCompatible(provider)) &&
+    supportsClaudeMaxEffort(model)
   );
 }
 
@@ -264,6 +242,7 @@ export function sanitizeReasoningEffortForProvider(
   model: string | undefined,
   log?: { info?: (tag: string, msg: string) => void } | null
 ): unknown {
+  if (provider === "codex") return body;
   if (!body || typeof body !== "object" || Array.isArray(body)) return body;
   const b = body as Record<string, unknown>;
   const reasoning =
@@ -279,8 +258,7 @@ export function sanitizeReasoningEffortForProvider(
   const shouldDowngradeXHigh = effortStr === "xhigh" && !supportsXHighEffort(provider, modelStr);
   const shouldDowngradeMax =
     effortStr === "max" && !supportsMaxEffortForProvider(provider, modelStr);
-  const shouldDowngradeUltra =
-    effortStr === "ultra" && !(provider === "codex" && supportsCodexUltraEffort(modelStr));
+  const shouldDowngradeUltra = effortStr === "ultra";
 
   if (shouldDowngradeXHigh || shouldDowngradeMax || shouldDowngradeUltra) {
     const downgradedEffort = shouldDowngradeUltra

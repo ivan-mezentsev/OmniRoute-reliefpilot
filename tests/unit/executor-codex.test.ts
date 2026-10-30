@@ -222,7 +222,7 @@ test("CodexExecutor.buildHeaders honors safe env overrides for Version and User-
   );
 });
 
-test("CodexExecutor.transformRequest injects default instructions, clamps reasoning and strips unsupported fields", () => {
+test("CodexExecutor.transformRequest injects default instructions, preserves reasoning and strips unsupported fields", () => {
   const executor = new CodexExecutor();
   const body = {
     model: "gpt-5-mini",
@@ -244,7 +244,7 @@ test("CodexExecutor.transformRequest injects default instructions, clamps reason
   assert.equal(result.stream, true);
   assert.equal(result.store, false);
   assert.equal(result.instructions.length > 0, true);
-  assert.equal(result.reasoning.effort, "high");
+  assert.equal(result.reasoning.effort, "xhigh");
   assert.equal(result.service_tier, "priority");
   assert.equal(result.messages, undefined);
   assert.equal(result.prompt, undefined);
@@ -323,7 +323,7 @@ test("CodexExecutor.transformRequest non-passthrough allowlist strips all residu
   assert.equal(result._internal_marker, undefined, "internal markers should be stripped");
 });
 
-test("CodexExecutor.transformRequest normalizes max reasoning_effort to xhigh", () => {
+test("CodexExecutor.transformRequest preserves max reasoning_effort", () => {
   const executor = new CodexExecutor();
   const result = executor.transformRequest(
     "gpt-5.5",
@@ -338,7 +338,7 @@ test("CodexExecutor.transformRequest normalizes max reasoning_effort to xhigh", 
     }
   );
 
-  assert.equal(result.reasoning.effort, "xhigh");
+  assert.equal(result.reasoning.effort, "max");
   assert.equal(result.reasoning_effort, undefined);
 });
 
@@ -380,7 +380,7 @@ test("CodexExecutor.transformRequest preserves ultra for GPT 5.6 Sol", () => {
   assert.equal(result.reasoning_effort, undefined);
 });
 
-test("CodexExecutor.transformRequest downgrades ultra to max for GPT 6.1 Terra", () => {
+test("CodexExecutor.transformRequest preserves ultra for GPT 6.1 Terra", () => {
   const executor = new CodexExecutor();
   const result = executor.transformRequest(
     "gpt-6.1-terra",
@@ -395,21 +395,31 @@ test("CodexExecutor.transformRequest downgrades ultra to max for GPT 6.1 Terra",
     }
   );
 
-  assert.equal(result.reasoning.effort, "max");
+  assert.equal(result.reasoning.effort, "ultra");
   assert.equal(result.reasoning_effort, undefined);
 });
 
-test("CodexExecutor.transformRequest preserves supported GPT 6.1 Terra reasoning efforts", () => {
+test("CodexExecutor.transformRequest preserves reasoning efforts across native and translated requests", () => {
   const executor = new CodexExecutor();
-  for (const effort of ["none", "low", "medium", "high", "xhigh", "max"]) {
-    const result = executor.transformRequest(
-      "gpt-6.1-terra",
-      { model: "gpt-6.1-terra", input: [], reasoning: { effort } },
-      true,
-      { requestEndpointPath: "/responses" }
-    );
-    assert.equal(result.model, "gpt-6.1-terra");
-    assert.equal(result.reasoning.effort, effort);
+  for (const model of ["gpt-6.1-sol", "custom-codex-model"]) {
+    for (const effort of ["none", "low", "medium", "high", "xhigh", "max", "ultra"]) {
+      for (const nativePassthrough of [false, true]) {
+        const result = executor.transformRequest(
+          model,
+          {
+            model,
+            input: [],
+            reasoning: { effort, summary: "auto" },
+            _nativeCodexPassthrough: nativePassthrough,
+          },
+          true,
+          { requestEndpointPath: "/responses" }
+        );
+        assert.equal(result.model, model);
+        assert.deepEqual(result.reasoning, { effort, summary: "auto" });
+        assert.equal(result.reasoning_effort, undefined);
+      }
+    }
   }
 });
 
@@ -723,11 +733,11 @@ test("CodexExecutor.transformRequest keeps explicit request values ahead of conn
   assert.equal(result.service_tier, "standard");
 });
 
-test("CodexExecutor.transformRequest lets model suffix beat connection reasoning defaults", () => {
+test("CodexExecutor.transformRequest lets max model suffix beat connection reasoning defaults", () => {
   const executor = new CodexExecutor();
   const result = executor.transformRequest(
-    "gpt-5.3-codex-high",
-    { model: "gpt-5.3-codex-high", input: [] },
+    "gpt-6.1-sol-max",
+    { model: "gpt-6.1-sol-max", input: [] },
     false,
     {
       providerSpecificData: {
@@ -738,8 +748,8 @@ test("CodexExecutor.transformRequest lets model suffix beat connection reasoning
     }
   );
 
-  assert.equal(result.model, "gpt-5.3-codex");
-  assert.equal(result.reasoning.effort, "high");
+  assert.equal(result.model, "gpt-6.1-sol");
+  assert.equal(result.reasoning.effort, "max");
 });
 
 test("CodexExecutor.transformRequest keeps gpt-5.5 as the model and applies xhigh reasoning", () => {
@@ -795,7 +805,7 @@ test("CodexExecutor.transformRequest keeps GPT 5.3 Codex reasoning in Responses 
   assert.equal(sanitized.reasoning_effort, undefined);
 });
 
-test("CodexExecutor.transformRequest keeps GPT 5.4 Mini reasoning downgrade in Responses shape", () => {
+test("CodexExecutor.transformRequest preserves GPT 5.4 Mini reasoning in Responses shape", () => {
   const executor = new CodexExecutor();
   const transformed = executor.transformRequest(
     "gpt-5.4-mini",
@@ -818,7 +828,7 @@ test("CodexExecutor.transformRequest keeps GPT 5.4 Mini reasoning downgrade in R
   const reasoning = getRecord(sanitized.reasoning);
 
   assert.equal(sanitized.model, "gpt-5.4-mini");
-  assert.equal(reasoning.effort, "high");
+  assert.equal(reasoning.effort, "xhigh");
   assert.equal(reasoning.summary, "auto");
   assert.equal(sanitized.reasoning_effort, undefined);
 });

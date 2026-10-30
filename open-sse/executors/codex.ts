@@ -560,35 +560,6 @@ function normalizeServiceTierValue(value: unknown): string | undefined {
   return normalized;
 }
 
-/**
- * Maximum reasoning effort allowed per Codex model.
- * Models not listed here default to "xhigh" (unrestricted).
- * Update this table when Codex releases new models with different caps.
- */
-const MAX_EFFORT_BY_MODEL: Record<string, EffortLevel> = {
-  "gpt-6-astra": "max",
-  "gpt-6.1-terra": "max",
-  "gpt-6.1-sol": "max",
-  "gpt-6-luna": "max",
-  "gpt-5.6-sol": "ultra",
-  "gpt-5.6-terra": "ultra",
-};
-
-/**
- * Clamp reasoning effort to the model's maximum allowed level.
- * Returns the original value if within limits, or the cap if it exceeds it.
- */
-function clampEffort(model: string, requested: string): string {
-  const max: EffortLevel = MAX_EFFORT_BY_MODEL[model] ?? "xhigh";
-  const reqIdx = EFFORT_ORDER.indexOf(requested as EffortLevel);
-  const maxIdx = EFFORT_ORDER.indexOf(max);
-  if (reqIdx > maxIdx) {
-    console.debug(`[Codex] clampEffort: "${requested}" → "${max}" (model: ${model})`);
-    return max;
-  }
-  return requested;
-}
-
 function normalizeEffortValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
@@ -1255,11 +1226,10 @@ export class CodexExecutor extends BaseExecutor {
     delete body.prompt;
 
     let modelEffort: string | null = null;
-    let cleanModel = typeof body.model === "string" ? body.model : model;
+    const cleanModel = typeof body.model === "string" ? body.model : model;
     const splitModel = splitCodexReasoningSuffix(cleanModel);
     if (splitModel.baseModel !== cleanModel) {
       body.model = splitModel.baseModel;
-      cleanModel = splitModel.baseModel;
     }
     if (splitModel.effort) {
       modelEffort = splitModel.effort;
@@ -1283,7 +1253,7 @@ export class CodexExecutor extends BaseExecutor {
     if (rawEffort) {
       body.reasoning = {
         ...(reasoningRecord || {}),
-        effort: clampEffort(cleanModel, rawEffort),
+        effort: rawEffort,
       };
     }
     delete body.reasoning_effort;

@@ -42,8 +42,13 @@ function normalizeCodexReasoningModelId(model: unknown): string {
     .replace(CODEX_REASONING_SUFFIX_PATTERN, "");
 }
 
-function normalizeResponsesReasoningEffort(value: unknown, model?: unknown): string {
+function normalizeResponsesReasoningEffort(
+  value: unknown,
+  model?: unknown,
+  provider?: unknown
+): string {
   const effort = toString(value).toLowerCase();
+  if (provider === "codex") return effort;
   const normalizedModel = normalizeCodexReasoningModelId(model);
 
   if (effort === "ultra") {
@@ -374,7 +379,11 @@ export function openaiResponsesToOpenAIRequest(
     const reasoningRec = toRecord(root.reasoning);
     const effort = toString(reasoningRec.effort);
     if (effort && result.reasoning_effort === undefined) {
-      result.reasoning_effort = normalizeResponsesReasoningEffort(effort, model);
+      result.reasoning_effort = normalizeResponsesReasoningEffort(
+        effort,
+        model,
+        credentialRecord.provider
+      );
     }
     if (shouldRequestClaudeSummarizedThinking(reasoningRec.summary)) {
       result[COPILOT_REASONING_SUMMARY_MARKER] = "summarized";
@@ -662,7 +671,11 @@ export function openaiToOpenAIResponsesRequest(
   if (root.reasoning !== undefined) {
     result.reasoning = root.reasoning;
   } else if (root.reasoning_effort !== undefined) {
-    const effort = normalizeResponsesReasoningEffort(root.reasoning_effort, model);
+    const effort = normalizeResponsesReasoningEffort(
+      root.reasoning_effort,
+      model,
+      credentialRecord.provider
+    );
     if (effort) {
       result.reasoning = { effort };
     }

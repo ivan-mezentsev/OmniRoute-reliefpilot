@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { translateRequest } from "../../open-sse/translator/index.ts";
+import { FORMATS } from "../../open-sse/translator/formats.ts";
 
 const { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } =
   await import("../../open-sse/translator/request/openai-responses.ts");
@@ -229,7 +231,11 @@ test("Responses -> Chat strips safety_identifier (LobeHub #2770)", () => {
     null
   ) as Record<string, unknown>;
 
-  assert.equal(result.safety_identifier, undefined, "safety_identifier must be stripped before forwarding to Chat Completions");
+  assert.equal(
+    result.safety_identifier,
+    undefined,
+    "safety_identifier must be stripped before forwarding to Chat Completions"
+  );
   assert.ok(Array.isArray(result.messages), "translation must still produce messages");
 });
 
@@ -450,34 +456,26 @@ test("Chat -> Responses normalizes reasoning_effort max to xhigh", () => {
   assert.equal((result as any).reasoning_effort, undefined);
 });
 
-test("Chat -> Responses preserves reasoning_effort max for GPT 5.6 Sol", () => {
-  const result = openaiToOpenAIResponsesRequest(
-    "gpt-5.6-sol",
-    {
-      messages: [{ role: "user", content: "Hello" }],
-      reasoning_effort: "max",
-    },
-    false,
-    null
-  );
+test("Chat -> Codex Responses preserves max and ultra efforts", () => {
+  for (const model of ["gpt-6.1-sol", "custom-codex-model"]) {
+    for (const effort of ["max", "ultra"]) {
+      const result = translateRequest(
+        FORMATS.OPENAI,
+        FORMATS.OPENAI_RESPONSES,
+        model,
+        {
+          messages: [{ role: "user", content: "Hello" }],
+          reasoning_effort: effort,
+        },
+        false,
+        null,
+        "codex"
+      );
 
-  assert.deepEqual((result as any).reasoning, { effort: "max" });
-  assert.equal((result as any).reasoning_effort, undefined);
-});
-
-test("Chat -> Responses preserves reasoning_effort ultra for GPT 5.6 Sol", () => {
-  const result = openaiToOpenAIResponsesRequest(
-    "gpt-5.6-sol",
-    {
-      messages: [{ role: "user", content: "Hello" }],
-      reasoning_effort: "ultra",
-    },
-    false,
-    null
-  );
-
-  assert.deepEqual((result as any).reasoning, { effort: "ultra" });
-  assert.equal((result as any).reasoning_effort, undefined);
+      assert.deepEqual(result.reasoning, { effort });
+      assert.equal(result.reasoning_effort, undefined);
+    }
+  }
 });
 
 test("Chat -> Responses filters orphan function_call_output items and leaves empty instructions when absent", () => {

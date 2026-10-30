@@ -159,60 +159,21 @@ test("sanitizeReasoningEffortForProvider: mistral/devstral preserves reasoning w
   assert.deepEqual((result as any).reasoning, { summary: "auto" });
 });
 
-test("sanitizeReasoningEffortForProvider: codex with xhigh passes through unchanged when model supports it", () => {
-  // codex/gpt-6.1-terra is flagged supportsXHighEffort:true in providerRegistry.
-  // Claude Opus 4.7+ models default to xhigh support unless explicitly opted out.
-  const body = {
-    model: "gpt-6.1-terra",
-    reasoning_effort: "xhigh",
-    messages: [],
-  };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-6.1-terra", null);
-  // Either passes through unchanged (supportsXHighEffort=true)
-  // or the registry doesn't flag it — in which case downgrade is acceptable.
-  // We assert no error and that some reasoning_effort is present.
-  assert.ok(
-    (result as any).reasoning_effort === "xhigh" || (result as any).reasoning_effort === "high",
-    "either preserved (xhigh) or downgraded (high)"
-  );
-});
-
-test("sanitizeReasoningEffortForProvider: codex GPT-5.6 Sol preserves max", () => {
-  const body = {
-    model: "gpt-5.6-sol",
-    reasoning_effort: "max",
-    messages: [],
-  };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-5.6-sol", null);
-  assert.equal((result as any).reasoning_effort, "max");
-});
-
-test("sanitizeReasoningEffortForProvider: codex GPT-5.6 Sol preserves ultra", () => {
-  const body = {
-    model: "gpt-5.6-sol",
-    reasoning_effort: "ultra",
-    messages: [],
-  };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-5.6-sol", null);
-  assert.equal((result as any).reasoning_effort, "ultra");
-});
-
-test("sanitizeReasoningEffortForProvider: codex GPT-6.1 Terra downgrades ultra to max", () => {
-  const body = {
-    model: "gpt-6.1-terra",
-    reasoning_effort: "ultra",
-    messages: [],
-  };
-  const result = sanitizeReasoningEffortForProvider(body, "codex", "gpt-6.1-terra", null);
-  assert.equal((result as any).reasoning_effort, "max");
-});
-
-test("sanitizeReasoningEffortForProvider: codex GPT-6.1 Terra preserves supported efforts", () => {
-  for (const effort of ["none", "low", "medium", "high", "xhigh", "max"]) {
-    const model = "gpt-6.1-terra";
-    const body = { model, reasoning: { effort, summary: "auto" }, messages: [] };
-    const result = sanitizeReasoningEffortForProvider(body, "codex", model, null);
-    assert.deepEqual((result as Record<string, unknown>).reasoning, { effort, summary: "auto" });
+test("sanitizeReasoningEffortForProvider: codex efforts pass through unchanged", () => {
+  for (const model of ["gpt-6.1-sol", "custom-codex-model"]) {
+    for (const effort of ["none", "low", "medium", "high", "xhigh", "max", "ultra"]) {
+      for (const body of [
+        { model, reasoning_effort: effort, messages: [] },
+        { model, reasoning: { effort, summary: "auto" }, input: [] },
+      ]) {
+        const original = structuredClone(body);
+        const log = makeLog();
+        const result = sanitizeReasoningEffortForProvider(body, "codex", model, log);
+        assert.equal(result, body);
+        assert.deepEqual(result, original);
+        assert.deepEqual(log.messages, []);
+      }
+    }
   }
 });
 

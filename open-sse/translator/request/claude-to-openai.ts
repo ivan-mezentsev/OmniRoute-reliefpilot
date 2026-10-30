@@ -35,10 +35,12 @@ function normalizeCodexReasoningModelId(model: unknown): string {
 
 function normalizeOpenAIReasoningEffort(
   effort: unknown,
-  model?: unknown
+  model?: unknown,
+  provider?: unknown
 ): string | undefined {
   if (typeof effort !== "string") return undefined;
   const normalized = effort.toLowerCase();
+  if (provider === "codex") return normalized || undefined;
   const normalizedModel = normalizeCodexReasoningModelId(model);
   if (normalized === "ultra") {
     if (CODEX_ULTRA_EFFORT_MODEL_PATTERN.test(normalizedModel)) return "ultra";
@@ -52,7 +54,7 @@ function normalizeOpenAIReasoningEffort(
 }
 
 // Convert Claude request to OpenAI format
-export function claudeToOpenAIRequest(model, body, stream) {
+export function claudeToOpenAIRequest(model, body, stream, credentials = null) {
   const result: {
     model: string;
     messages: JsonRecord[];
@@ -151,7 +153,8 @@ export function claudeToOpenAIRequest(model, body, stream) {
   // Reasoning effort: map Claude-side thinking controls to OpenAI reasoning_effort.
   // Priority: output_config.effort (Claude Code) > thinking.budget_tokens (Claude native).
   // Budget buckets match the reverse mapping in thinkingBudget.ts::setCustomBudget.
-  const outputEffort = normalizeOpenAIReasoningEffort(body.output_config?.effort, model) || "";
+  const outputEffort =
+    normalizeOpenAIReasoningEffort(body.output_config?.effort, model, credentials?.provider) || "";
   if (outputEffort) {
     result.reasoning_effort = outputEffort;
   } else if (body.thinking?.type === "enabled" && typeof body.thinking.budget_tokens === "number") {
