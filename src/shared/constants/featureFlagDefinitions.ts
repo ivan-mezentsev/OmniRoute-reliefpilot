@@ -246,7 +246,7 @@ export const FEATURE_FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
     key: "OMNIROUTE_CODEX_WS_ENABLED",
     label: "Codex Responses WebSocket",
     description:
-      "Allow Codex to use the Responses-over-WebSocket transport (the codex CLI WS endpoint and codexTransport=websocket). When off, Codex falls back to HTTP Responses.",
+      "Use the Codex Responses-over-WebSocket transport when the wreq-js websocket client is available. When off, Codex falls back to HTTP Responses.",
     descriptionI18nKey: "featureFlagOmnirouteCodexWsEnabledDescription",
     category: "runtime",
     defaultValue: "true",

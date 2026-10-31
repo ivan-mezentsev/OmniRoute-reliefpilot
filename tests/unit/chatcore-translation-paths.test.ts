@@ -27,6 +27,8 @@ const {
   resetAll: resetAccountSemaphores,
 } = await import("../../open-sse/services/accountSemaphore.ts");
 const { getExecutor } = await import("../../open-sse/executors/index.ts");
+const { __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 const { clearModelLock, isModelLocked } =
   await import("../../open-sse/services/accountFallback.ts");
 const { saveModelsDevCapabilities, clearModelsDevCapabilities } =
@@ -313,6 +315,7 @@ async function invokeChatCore({
   onCredentialsRefreshed = null,
   onRequestSuccess = null,
 }: any = {}) {
+  __setCodexWebSocketTransportForTesting(null);
   const calls: any[] = [];
 
   globalThis.fetch = async (url, init = {}) => {

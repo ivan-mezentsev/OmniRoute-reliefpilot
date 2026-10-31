@@ -10,7 +10,8 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 const core = await import("../../src/lib/db/core.ts");
 const { handleChatCore } = await import("../../open-sse/handlers/chatCore.ts");
 const { handleComboChat } = await import("../../open-sse/services/combo.ts");
-const { CodexExecutor } = await import("../../open-sse/executors/codex.ts");
+const { CodexExecutor, __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 
 const originalFetch = globalThis.fetch;
 
@@ -155,6 +156,7 @@ async function invokeChatCore({
   responseFactory,
   log = noopLog(),
 } = {}) {
+  __setCodexWebSocketTransportForTesting(null);
   const calls = [];
 
   globalThis.fetch = async (url, init = {}) => {

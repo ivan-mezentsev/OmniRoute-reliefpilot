@@ -25,6 +25,8 @@ const { clearInflight } = await import("../../open-sse/services/requestDedup.ts"
 const { setCliCompatProviders } = await import("../../open-sse/config/cliFingerprints.ts");
 const { BaseExecutor } = await import("../../open-sse/executors/base.ts");
 const { getCodexClientVersion } = await import("../../open-sse/config/codexClient.ts");
+const { __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 const { GEMINI_CLI_VERSION, GEMINI_CLI_GOOGLE_API_NODE_CLIENT_VERSION } =
   await import("../../open-sse/services/geminiCliHeaders.ts");
 const { getCircuitBreaker, resetAllCircuitBreakers } =
@@ -506,6 +508,7 @@ async function getResponsesCallLogs() {
 }
 
 test.beforeEach(async () => {
+  __setCodexWebSocketTransportForTesting(null);
   BaseExecutor.RETRY_CONFIG.delayMs = 0;
   await resetStorage();
 });

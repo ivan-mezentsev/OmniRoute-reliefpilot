@@ -27,7 +27,7 @@ import {
 import { getAccessToken } from "../services/tokenRefresh.ts";
 import { sanitizeResponsesInputItems } from "../services/responsesInputSanitizer.ts";
 import { getThinkingBudgetConfig, ThinkingMode } from "../services/thinkingBudget.ts";
-import { CORS_HEADERS } from "../utils/cors.ts";
+import { resolveProxyForRequest } from "../utils/proxyFetch.ts";
 import { createRequire } from "module";
 
 // ─── wreq-js lazy loader ───────────────────────────────────────────────────
@@ -75,23 +75,31 @@ export function __setCodexWebSocketTransportForTesting(
   _websocketOverride = websocket;
 }
 
-function codexWebSocketUnavailableResponse(): Response {
+function codexWebSocketConnectFailureResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/unexpected status code:\s*(\d{3})(?!\d)/i);
+  const parsed = match ? Number(match[1]) : Number.NaN;
+  const status = parsed >= 400 && parsed <= 599 ? parsed : 502;
   return new Response(
     JSON.stringify({
       error: {
-        code: "wreq_unavailable",
-        message:
-          "Codex WebSocket transport unavailable: wreq-js native module is missing for this platform",
+        code: "upstream_websocket_connect_failed",
+        message,
       },
     }),
     {
-      status: 503,
-      headers: {
-        "Content-Type": "application/json",
-        ...CORS_HEADERS,
-      },
+      status,
+      headers: { "Content-Type": "application/json" },
     }
   );
+}
+
+function throwCodexWebSocketAbort(signal: AbortSignal): never {
+  const reason = signal.reason;
+  if (reason instanceof Error) throw reason;
+  const abortError = new Error("Request aborted");
+  abortError.name = "AbortError";
+  throw abortError;
 }
 
 // ─── T09: Codex vs Spark Scope-Aware Rate Limiting ────────────────────────
@@ -586,19 +594,15 @@ function isCodexWsGloballyEnabled(): boolean {
 }
 
 export function isCodexResponsesWebSocketRequired(_model: string, credentials: unknown): boolean {
-  // Global kill-switch (default ON). When disabled, Codex never uses the WS
-  // transport — even per-connection codexTransport=websocket falls back to the
-  // HTTP Responses SSE endpoint.
+  // Disabled flag and any non-empty /responses/* subpath use HTTP super.execute.
+  // /responses with the flag on uses the existing WebSocket branch when wreq-js is loaded.
   if (!isCodexWsGloballyEnabled()) return false;
-  // OmniRoute is an HTTP→SSE gateway — WebSocket transport is unnecessary and
-  // breaks when upstream requests go through an HTTP proxy (403 on WS upgrade).
-  // Default to the standard HTTP Responses SSE endpoint for all Codex models.
-  // Users who need WebSocket can opt in via the provider codexTransport setting.
-  const providerSpecificData =
+  const requestEndpointPath =
     credentials && typeof credentials === "object"
-      ? (credentials as { providerSpecificData?: Record<string, unknown> }).providerSpecificData
-      : null;
-  return !!(providerSpecificData?.codexTransport === "websocket" && getCodexWebSocketTransport());
+      ? (credentials as { requestEndpointPath?: unknown }).requestEndpointPath
+      : undefined;
+  if (getResponsesSubpath(requestEndpointPath)) return false;
+  return !!getCodexWebSocketTransport();
 }
 
 function toStatusCode(value: unknown): number | null {
@@ -761,6 +765,8 @@ export class CodexExecutor extends BaseExecutor {
     }
 
     const url = CODEX_RESPONSES_WS_URL;
+    const websocketProxyUrl =
+      resolveProxyForRequest(url.replace(/^wss:/, "https:")).proxyUrl ?? undefined;
     const headers = normalizeCodexWsHeaders(this.buildHeaders(nextInput.credentials, true));
     mergeUpstreamExtraHeaders(headers, nextInput.upstreamExtraHeaders);
 
@@ -781,8 +787,21 @@ export class CodexExecutor extends BaseExecutor {
 
     const websocketFn = getCodexWebSocketTransport();
     if (!websocketFn) {
+      return super.execute(nextInput);
+    }
+
+    let ws: WreqWebSocket;
+    try {
+      ws = await websocketFn(toWebSocketUrl(url), {
+        browser: "chrome_142",
+        os: "windows",
+        headers,
+        proxy: websocketProxyUrl,
+      });
+    } catch (error) {
+      if (nextInput.signal?.aborted) throwCodexWebSocketAbort(nextInput.signal);
       return {
-        response: codexWebSocketUnavailableResponse(),
+        response: codexWebSocketConnectFailureResponse(error),
         url,
         headers,
         transformedBody,
@@ -791,7 +810,6 @@ export class CodexExecutor extends BaseExecutor {
 
     const encoder = new TextEncoder();
     let closed = false;
-    let ws: WreqWebSocket | null = null;
     let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
 
     const closeUpstream = (reason: string) => {
@@ -872,11 +890,6 @@ export class CodexExecutor extends BaseExecutor {
         nextInput.signal?.addEventListener("abort", abortHandler, { once: true });
 
         try {
-          ws = await websocketFn(toWebSocketUrl(url), {
-            browser: "chrome_142",
-            os: "windows",
-            headers,
-          });
           if (closed) return;
           if (nextInput.signal?.aborted) {
             finishStream({ reason: "client_aborted" });

@@ -9,6 +9,8 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 
 const core = await import("../../src/lib/db/core.ts");
 const { handleResponsesCore } = await import("../../open-sse/handlers/responsesHandler.ts");
+const { __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 
 const originalFetch = globalThis.fetch;
 
@@ -83,6 +85,7 @@ async function invokeResponsesCore({
   responseFactory?: any;
   signal?: AbortSignal;
 } = {}) {
+  __setCodexWebSocketTransportForTesting(null);
   const calls: any[] = [];
 
   globalThis.fetch = async (url, init = {}) => {

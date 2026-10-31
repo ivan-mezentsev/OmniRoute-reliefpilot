@@ -88,7 +88,8 @@ test("Codex helper functions isolate rate-limit scopes and parse quota headers",
   assert.equal(getCodexUpstreamModel("gpt-5.6-sol-review"), "gpt-5.6-sol");
   assert.equal(getCodexUpstreamModel("gpt-5.6-terra-review"), "gpt-5.6-terra");
   assert.equal(getCodexUpstreamModel("gpt-6.1-terra"), "gpt-6.1-terra");
-  // With mock WS transport + codexTransport=websocket, gpt-5.5 models require WS
+  // With mock WS transport and the flag default ON, /responses uses WebSocket.
+  // A non-empty /responses/* subpath stays on HTTP.
   __setCodexWebSocketTransportForTesting(
     async (): Promise<MockCodexWebSocket> => ({
       send() {},
@@ -98,21 +99,26 @@ test("Codex helper functions isolate rate-limit scopes and parse quota headers",
       onclose: null,
     })
   );
+  assert.equal(isCodexResponsesWebSocketRequired("gpt-5.5-xhigh", {}), true);
+  assert.equal(isCodexResponsesWebSocketRequired("gpt-5.5-medium", {}), true);
   assert.equal(
-    isCodexResponsesWebSocketRequired("gpt-5.5-xhigh", {
-      providerSpecificData: { codexTransport: "websocket" },
+    isCodexResponsesWebSocketRequired("gpt-5.5", {
+      requestEndpointPath: "/v1/responses",
     }),
     true
   );
   assert.equal(
-    isCodexResponsesWebSocketRequired("gpt-5.5-medium", {
-      providerSpecificData: { codexTransport: "websocket" },
+    isCodexResponsesWebSocketRequired("gpt-5.5", {
+      requestEndpointPath: "/responses/compact",
     }),
-    true
+    false
   );
-  // Without codexTransport setting, defaults to HTTP (false)
-  assert.equal(isCodexResponsesWebSocketRequired("gpt-5.5-xhigh", {}), false);
-  assert.equal(isCodexResponsesWebSocketRequired("gpt-5.5-medium", {}), false);
+  assert.equal(
+    isCodexResponsesWebSocketRequired("gpt-5.5", {
+      requestEndpointPath: "/v1/responses/items/history",
+    }),
+    false
+  );
   __setCodexWebSocketTransportForTesting(undefined);
   assert.equal(getCodexRateLimitKey("acct-1", "codex-spark-mini"), "acct-1:spark");
   assert.equal(quota.usage5h, 100);
@@ -120,8 +126,7 @@ test("Codex helper functions isolate rate-limit scopes and parse quota headers",
   assert.ok(getCodexResetTime(quota) >= new Date(quota.resetAt7d).getTime());
 });
 
-test("isCodexResponsesWebSocketRequired: OMNIROUTE_CODEX_WS_ENABLED=false forces HTTP even with codexTransport=websocket", () => {
-  // Transport available + per-connection opt-in would normally enable WS…
+test("isCodexResponsesWebSocketRequired: OMNIROUTE_CODEX_WS_ENABLED=false forces HTTP", () => {
   __setCodexWebSocketTransportForTesting(
     () =>
       ({
@@ -136,13 +141,7 @@ test("isCodexResponsesWebSocketRequired: OMNIROUTE_CODEX_WS_ENABLED=false forces
   const prev = process.env.OMNIROUTE_CODEX_WS_ENABLED;
   process.env.OMNIROUTE_CODEX_WS_ENABLED = "false";
   try {
-    // …but the global kill-switch (default ON) overrides it to false.
-    assert.equal(
-      isCodexResponsesWebSocketRequired("gpt-5.5-xhigh", {
-        providerSpecificData: { codexTransport: "websocket" },
-      }),
-      false
-    );
+    assert.equal(isCodexResponsesWebSocketRequired("gpt-5.5-xhigh", {}), false);
   } finally {
     if (prev === undefined) delete process.env.OMNIROUTE_CODEX_WS_ENABLED;
     else process.env.OMNIROUTE_CODEX_WS_ENABLED = prev;
@@ -906,7 +905,6 @@ test("CodexExecutor.execute falls back to HTTP when websocket transport is unava
       stream: true,
       credentials: {
         accessToken: "codex-token",
-        providerSpecificData: { codexTransport: "websocket" },
       },
     });
 
@@ -919,7 +917,39 @@ test("CodexExecutor.execute falls back to HTTP when websocket transport is unava
   }
 });
 
+test("CodexExecutor.execute returns the websocket handshake status", async () => {
+  __setCodexWebSocketTransportForTesting(async () => {
+    throw new Error("unexpected status code: 401 Unauthorized");
+  });
+  const executor = new CodexExecutor();
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("fetch should not run");
+  };
+
+  try {
+    const result = await executor.execute({
+      model: "gpt-5.5",
+      body: { model: "gpt-5.5", input: [{ role: "user", content: "hello" }] },
+      stream: true,
+      credentials: { accessToken: "codex-token" },
+    });
+    assert.equal(result.response.status, 401);
+    const body = (await result.response.json()) as {
+      error?: { code?: string };
+    };
+    assert.equal(body.error?.code, "upstream_websocket_connect_failed");
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    __setCodexWebSocketTransportForTesting(undefined);
+  }
+});
+
 test("CodexExecutor.execute adds CLI-like session identity headers without changing response flow", async () => {
+  __setCodexWebSocketTransportForTesting(null);
   const executor = new CodexExecutor();
   const originalFetch = globalThis.fetch;
   let capturedBody: Record<string, unknown> | null = null;
@@ -969,6 +999,7 @@ test("CodexExecutor.execute adds CLI-like session identity headers without chang
 });
 
 test("CodexExecutor.execute skips identity headers for unsafe session ids", async () => {
+  __setCodexWebSocketTransportForTesting(null);
   const executor = new CodexExecutor();
   const originalFetch = globalThis.fetch;
   let capturedHeaders: Headers | null = null;

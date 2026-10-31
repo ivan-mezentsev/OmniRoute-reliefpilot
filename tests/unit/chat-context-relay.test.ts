@@ -7,6 +7,8 @@ const harness = await createChatPipelineHarness("chat-context-relay");
 const { BaseExecutor, buildRequest, combosDb, handleChat, resetStorage, waitFor, toPlainHeaders } =
   harness as any;
 const providersDb = await import("../../src/lib/db/providers.ts");
+const { __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 const handoffDb = await import("../../src/lib/db/contextHandoffs.ts");
 
 function buildResponsesResponse(text = "ok", model = "gpt-5.4") {
@@ -78,6 +80,7 @@ function buildQuotaResponse(usedPercent, resetAfterSeconds = 3600) {
 }
 
 test.beforeEach(async () => {
+  __setCodexWebSocketTransportForTesting(null);
   await resetStorage();
 });
 

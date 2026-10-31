@@ -8,6 +8,8 @@ const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-chatcore-
 process.env.DATA_DIR = TEST_DATA_DIR;
 
 const { handleChatCore } = await import("../../open-sse/handlers/chatCore.ts");
+const { __setCodexWebSocketTransportForTesting } =
+  await import("../../open-sse/executors/codex.ts");
 const settingsDb = await import("../../src/lib/db/settings.ts");
 const { createMemory, listMemories } = await import("../../src/lib/memory/store.ts");
 const { invalidateMemorySettingsCache } = await import("../../src/lib/memory/settings.ts");
@@ -100,6 +102,7 @@ async function invokeChatCore({
   userAgent = "unit-test",
   responseFactory,
 } = {}) {
+  __setCodexWebSocketTransportForTesting(null);
   const originalFetch = globalThis.fetch;
   const calls = [];
   const resolvedStream =
